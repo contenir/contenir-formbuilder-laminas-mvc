@@ -44,6 +44,13 @@ The redirect keeps the referrer's path and query, replaces any existing
 an HTML id (`[A-Za-z][\w-]*`) is appended as the fragment, so a mid-page form
 scrolls back into view. Without a referrer the target is `/`.
 
+The Referer header comes from the client, so it is only followed back to this
+site. A local path is kept, but not `//host` or `/\host`, which browsers treat
+as another site. An absolute `http(s)` URL is kept only when its host, and port
+if given, match the request's. Anything else, including other schemes,
+control characters and any absolute URL when the request host is unknown,
+redirects to `/` instead.
+
 ## FormStateStash
 
 On an invalid, non-JSON submission the controller stores the POSTed values

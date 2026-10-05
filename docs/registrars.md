@@ -48,13 +48,16 @@ Sends each enabled `NotificationDefinition` of the form through a
   each part is expanded and kept when it is a valid email address.
 - **From and Reply-To:** expanded; an empty result is skipped, and one Laminas
   rejects is logged as a notice and skipped.
-- **Body:** plain text as is. A body containing HTML tags is sent as
-  `multipart/alternative` with a generated plain-text part.
+- **Body:** the *template* decides the format. A template containing HTML
+  tags or `{entry:fields}` is an HTML body: every merge-tag value is
+  HTML-escaped (`TokenReplacer::replaceForHtml()`) and the message is sent as
+  `multipart/alternative` with a generated plain-text part. Any other template
+  is sent as plain text, even if a submitted value contains markup.
 - **Failures** are logged as warnings and never thrown, and do not stop the
   other notifications.
 
-`{field:*}` values are inserted as submitted. In an HTML body, a visitor can
-therefore add markup; prefer `{entry:fields}`, which escapes values.
+Submitted values can't add markup to a notification: HTML bodies escape them,
+and plain-text bodies are never sent as HTML.
 
 ## WebhookRegistrar
 
