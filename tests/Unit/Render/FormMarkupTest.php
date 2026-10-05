@@ -10,6 +10,7 @@ use Contenir\FormBuilder\Definition\RowDefinition;
 use Contenir\FormBuilder\Definition\SectionDefinition;
 use Contenir\FormBuilder\Laminas\Mvc\Render\FormMarkup;
 use Contenir\FormBuilder\Laminas\Mvc\Tests\TestAsset\FormDefinitionFactory;
+use Contenir\FormBuilder\Laminas\Mvc\Tests\TestAsset\PlaceholderFormElement;
 use Contenir\FormBuilder\Laminas\Mvc\Tests\TestAsset\RecordingFormElement;
 use Contenir\FormBuilder\Laminas\Mvc\Tests\TestAsset\ViewRendererBuilder;
 use Contenir\FormBuilder\Service\FormBuilderService;
@@ -31,11 +32,24 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
+use function implode;
+use function preg_match_all;
+
 #[Group('unit')]
 final class FormMarkupTest extends TestCase
 {
     private FormMarkup $renderer;
     private RecordingFormElement $formElement;
+
+    /** @return array<string, array{0: string|null, 1: string}> */
+    public static function checkboxClassProvider(): array
+    {
+        return [
+            'no class'             => [null, 'formbuilder__control--checkbox'],
+            'unrelated class'      => ['extra', 'formbuilder__control--checkbox extra'],
+            'padded control class' => [' formbuilder__control', 'formbuilder__control--checkbox'],
+        ];
+    }
 
     /** @return array<string, array{0: string, 1: string, 2: string, 3: class-string}> */
     public static function elementsRoutedThroughFormElementProvider(): array
@@ -46,6 +60,15 @@ final class FormMarkupTest extends TestCase
             'hidden'   => ['makeHidden', 'hidden', 'token', Hidden::class],
             'textarea' => ['makeTextarea', 'textarea', 'notes', Textarea::class],
             'submit'   => ['makeSubmit', 'submit', '_submit', Submit::class],
+        ];
+    }
+
+    /** @return array<string, array{0: string|null, 1: string}> */
+    public static function selectClassProvider(): array
+    {
+        return [
+            'no class'        => [null, 'formbuilder__control--select'],
+            'unrelated class' => ['big', 'big formbuilder__control--select'],
         ];
     }
 
@@ -71,6 +94,82 @@ final class FormMarkupTest extends TestCase
         return new Textarea($name);
     }
 
+    /**
+     * @param string|null $class
+     */
+    #[Test]
+    #[DataProvider('checkboxClassProvider')]
+    public function checkboxClassGainsTheCheckboxModifier(?string $class, string $expected): void
+    {
+        $form    = $this->buildForm();
+        $element = new Checkbox('subscribe');
+        $element->setAttribute('class', $class);
+        $form->add($element);
+
+        $this->renderer->render(FormDefinitionFactory::withFields([FormDefinitionFactory::field(
+            'checkbox',
+            'subscribe',
+        )]), $form);
+
+        static::assertSame($expected, $element->getAttribute('class'));
+    }
+
+    #[Test]
+    public function checkboxKeepsItsOwnIdForTheLabel(): void
+    {
+        $form    = $this->buildForm();
+        $element = new Checkbox('subscribe');
+        $element->setLabel('Subscribe');
+        $element->setAttribute('id', 'custom');
+        $form->add($element);
+
+        $html = $this->renderer->render(FormDefinitionFactory::withFields([FormDefinitionFactory::field(
+            'checkbox',
+            'subscribe',
+        )]), $form);
+
+        static::assertStringContainsString('<label class="formbuilder__label" for="custom">Subscribe</label>', $html);
+    }
+
+    #[Test]
+    public function checkboxWithoutAnIdTakesItsName(): void
+    {
+        $form    = $this->buildForm();
+        $element = new Checkbox('subscribe');
+        $form->add($element);
+
+        $this->renderer->render(FormDefinitionFactory::withFields([FormDefinitionFactory::field(
+            'checkbox',
+            'subscribe',
+        )]), $form);
+
+        static::assertSame('subscribe', $element->getAttribute('id'));
+    }
+
+    #[Test]
+    public function choiceListItemsPutTheInputBeforeItsLabel(): void
+    {
+        $element = new Radio('size');
+        $element->setValueOptions(['s' => 'Small']);
+        $form = $this->buildForm();
+        $form->add($element);
+
+        $html = $this->renderer->render(FormDefinitionFactory::withFields([FormDefinitionFactory::field(
+            'radio',
+            'size',
+            ['showLabel' => false],
+        )]), $form);
+
+        static::assertStringContainsString(
+            '<div class="formbuilder__element"><div class="formbuilder__control--checkbox-list">'
+                . '<span class="formbuilder__control--checkbox-list-item">'
+                . '<input type="radio" name="size" id="size-s" value="s" class="formbuilder__control--checkbox">'
+                . '<label class="formbuilder__label" for="size-s">Small</label>'
+                . '</span></div></div>',
+            $html,
+        );
+    }
+
     #[Test]
     public function choiceListsAcceptValueAndLabelSpecs(): void
     {
@@ -79,6 +178,7 @@ final class FormMarkupTest extends TestCase
             's'   => 'Small',
             'x'   => ['value' => 'l', 'label' => 'Large'],
             'bad' => ['label' => ['x']],
+            'nil' => ['label' => 'Nothing'],
         ]);
         $form = $this->buildForm();
         $form->add($radio);
@@ -90,6 +190,42 @@ final class FormMarkupTest extends TestCase
 
         static::assertStringContainsString('for="size-l">Large</label>', $html);
         static::assertStringNotContainsString('size-bad', $html);
+        static::assertStringNotContainsString('Nothing', $html);
+    }
+
+    #[Test]
+    public function choiceListsIgnoreEmptySelectedValues(): void
+    {
+        $element = new MultiCheckbox('pick');
+        $element->setValueOptions(['' => 'None', 'b' => 'B']);
+        $element->setValue(['', 'b']);
+        $form = $this->buildForm();
+        $form->add($element);
+
+        $html = $this->renderer->render(FormDefinitionFactory::withFields([FormDefinitionFactory::field(
+            'multicheckbox',
+            'pick',
+        )]), $form);
+
+        static::assertSame(
+            ['pick-b'],
+            preg_match_all('/id="([^"]+)"[^>]*checked="checked"/', $html, $matches) > 0 ? $matches[1] : [],
+        );
+    }
+
+    #[Test]
+    public function conditionalFieldCanDependOnALaterElement(): void
+    {
+        $form = $this->buildForm();
+        $form->add(new Text('details'));
+        $form->add((new Text('opt_in'))->setValue('yes'));
+        $rule = ['show_when' => ['all' => [['field' => 'opt_in', 'op' => 'equals', 'value' => 'yes']]]];
+
+        $html = $this->renderer->render(FormDefinitionFactory::withFields([
+            FormDefinitionFactory::field('text', 'details', ['conditional' => $rule]),
+        ]), $form);
+
+        static::assertStringNotContainsString(' hidden="hidden"', $html);
     }
 
     #[Test]
@@ -200,6 +336,19 @@ final class FormMarkupTest extends TestCase
     }
 
     #[Test]
+    public function defaultEscaperEncodesQuotes(): void
+    {
+        $form = $this->buildForm();
+        $form->add(new Text('name'));
+
+        $html = $this->renderer->render(FormDefinitionFactory::withFields([
+            FormDefinitionFactory::field('text', 'name', ['label' => "\"Q\" & 'A'"]),
+        ]), $form);
+
+        static::assertStringContainsString('for="name">&quot;Q&quot; &amp; &#039;A&#039;</label>', $html);
+    }
+
+    #[Test]
     public function emptyGroupEmitsPlaceholderCopy(): void
     {
         $form     = $this->buildForm();
@@ -245,7 +394,7 @@ final class FormMarkupTest extends TestCase
     {
         $form = $this->buildForm();
         $form->add(new Text('name'));
-        $form->get('name')->setMessages(['isEmpty' => 'Required', 'nested' => ['a', ['b']]]);
+        $form->get('name')->setMessages(['isEmpty' => 'Required', 'nested' => [['b'], 'a']]);
 
         $html = $this->renderer->render(FormDefinitionFactory::withFields([FormDefinitionFactory::field(
             'text',
@@ -288,7 +437,8 @@ final class FormMarkupTest extends TestCase
     #[Test]
     public function fileFieldSwitchesFormEnctypeToMultipart(): void
     {
-        $form    = $this->buildForm();
+        $form = $this->buildForm();
+        $form->add(new Text('name'));
         $element = new File('upload');
         $form->add($element);
 
@@ -300,6 +450,20 @@ final class FormMarkupTest extends TestCase
 
         static::assertStringContainsString('enctype="multipart/form-data"', $html);
         static::assertContains(File::class, $this->formElement->renderedClasses());
+    }
+
+    #[Test]
+    public function formTagOmitsEmptyFalseAndNonScalarAttributes(): void
+    {
+        $form = $this->buildForm();
+        $form->setAttributes(['method' => '', 'novalidate' => false, 'title' => '', 'data-x' => ['a'], 'id' => 'f']);
+
+        $html = $this->renderer->render(FormDefinitionFactory::withFields([]), $form);
+
+        static::assertStringStartsWith(
+            '<form method="post" name="test" id="f" class="formbuilder__form formbuilder__form--stacked" autocomplete="on">',
+            $html,
+        );
     }
 
     #[Test]
@@ -501,6 +665,148 @@ final class FormMarkupTest extends TestCase
     }
 
     #[Test]
+    public function rendersTheStackedLayoutExactly(): void
+    {
+        $form = $this->buildForm();
+        foreach (['first_name', 'last_name', 'email', 'phone'] as $name) {
+            $form->add(new Text($name));
+        }
+        $form->get('first_name')->setMessages(['isEmpty' => 'Required']);
+        $form->add(new Text(FormBuilderService::CSRF_NAME));
+        $form->add(new Text(FormBuilderService::HONEYPOT_NAME));
+        $form->add(new Submit('_submit'));
+        $definition = new FormDefinition(
+            id: 1,
+            slug: 's',
+            title: 'S',
+            sections: [
+                new SectionDefinition(null, 'about', 'About', 'Who you are', 0, [
+                    new GroupDefinition(null, 'Details', 'Basics', 0, [
+                        new RowDefinition(null, 0, [
+                            FormDefinitionFactory::field('text', 'first_name', ['description' => 'Given name']),
+                            FormDefinitionFactory::field('content', 'intro', ['options' => ['html' => '<p>Hi</p>']]),
+                            FormDefinitionFactory::field('text', 'last_name'),
+                        ]),
+                        new RowDefinition(null, 1, [FormDefinitionFactory::field('text', 'email')]),
+                    ]),
+                    new GroupDefinition(null, null, null, 1, [
+                        new RowDefinition(null, 0, [FormDefinitionFactory::field('text', 'phone')]),
+                    ]),
+                ]),
+            ],
+        );
+
+        static::assertSame(
+            '<form method="POST" name="test" class="formbuilder__form formbuilder__form--stacked" autocomplete="on">'
+                . '<section class="formbuilder__section">'
+                . '<h2 class="formbuilder__section-title">About</h2>'
+                . '<p class="formbuilder__section-description">Who you are</p>'
+                . '<fieldset class="formbuilder__panel">'
+                . '<legend class="formbuilder__legend">Details</legend>'
+                . '<p class="formbuilder__panel-description">Basics</p>'
+                . '<div class="formbuilder__panel-body">'
+                . '<div class="formbuilder__row">'
+                . '<div class="formbuilder__field">'
+                . '<label class="formbuilder__label" for="first_name">First_name</label>'
+                . '<div class="formbuilder__element"><input name="first_name"></div>'
+                . '<ul class="formbuilder__errors"><li>Required</li></ul>'
+                . '<p class="formbuilder__description">Given name</p>'
+                . '</div>'
+                . '<div class="formbuilder__field"><div class="formbuilder__content"><p>Hi</p></div></div>'
+                . '<div class="formbuilder__field">'
+                . '<label class="formbuilder__label" for="last_name">Last_name</label>'
+                . '<div class="formbuilder__element"><input name="last_name"></div>'
+                . '</div>'
+                . '</div>'
+                . '<div class="formbuilder__row">'
+                . '<div class="formbuilder__field">'
+                . '<label class="formbuilder__label" for="email">Email</label>'
+                . '<div class="formbuilder__element"><input name="email"></div>'
+                . '</div>'
+                . '</div>'
+                . '</div>'
+                . '</fieldset>'
+                . '<fieldset class="formbuilder__panel">'
+                . '<div class="formbuilder__panel-body">'
+                . '<div class="formbuilder__row">'
+                . '<div class="formbuilder__field">'
+                . '<label class="formbuilder__label" for="phone">Phone</label>'
+                . '<div class="formbuilder__element"><input name="phone"></div>'
+                . '</div>'
+                . '</div>'
+                . '</div>'
+                . '</fieldset>'
+                . '</section>'
+                . '<div class="formbuilder__actions formbuilder__actions--left">'
+                . '<input name="_csrf">'
+                . '<div class="formbuilder__honeypot" aria-hidden="true"><input name="hid"></div>'
+                . '<input name="_submit">'
+                . '</div>'
+                . '</form>',
+            $this->placeholderRenderer()->render($definition, $form),
+        );
+    }
+
+    #[Test]
+    public function rendersTheSteppedLayoutExactly(): void
+    {
+        $form = $this->buildForm();
+        $form->setAttribute('class', 'custom');
+        foreach (['first_name', 'email', 'notes'] as $name) {
+            $form->add(new Text($name));
+        }
+        $form->add(new Submit('_submit'));
+        $definition = FormDefinitionFactory::withSections([
+            ['key' => 'about', 'legend' => 'About', 'fields' => [FormDefinitionFactory::field('text', 'first_name')]],
+            ['key' => 'contact-info', 'legend' => '', 'fields' => [FormDefinitionFactory::field('text', 'email')]],
+            [
+                'key'    => 'extra',
+                'legend' => 'Anything else',
+                'fields' => [FormDefinitionFactory::field('text', 'notes')],
+            ],
+        ]);
+
+        static::assertSame(
+            implode('', [
+                '<form method="POST" name="test" class="custom formbuilder__form--stepped" autocomplete="on"',
+                ' data-form-stepper="true">',
+                '<ol class="formbuilder__steps" role="tablist">',
+                '<li><button type="button" class="formbuilder__step-tab is-active" data-form-step-target="about">',
+                '<span class="formbuilder__step-tab-index">1</span> About</button></li>',
+                '<li><button type="button" class="formbuilder__step-tab" data-form-step-target="contact-info" disabled>',
+                '<span class="formbuilder__step-tab-index">2</span> Contact info</button></li>',
+                '<li><button type="button" class="formbuilder__step-tab" data-form-step-target="extra" disabled>',
+                '<span class="formbuilder__step-tab-index">3</span> Anything else</button></li>',
+                '</ol>',
+                '<section class="formbuilder__step is-active" data-form-step="about">',
+                '<h2 class="formbuilder__step-title">About</h2>',
+                $this->placeholderGroup('first_name', 'First_name'),
+                '<nav class="formbuilder__step-nav">',
+                '<button type="button" class="btn btn--primary" data-form-step-next>Next</button>',
+                '</nav>',
+                '</section>',
+                '<section class="formbuilder__step" data-form-step="contact-info" hidden>',
+                $this->placeholderGroup('email', 'Email'),
+                '<nav class="formbuilder__step-nav">',
+                '<button type="button" class="btn" data-form-step-prev>Previous</button>',
+                '<button type="button" class="btn btn--primary" data-form-step-next>Next</button>',
+                '</nav>',
+                '</section>',
+                '<section class="formbuilder__step" data-form-step="extra" hidden>',
+                '<h2 class="formbuilder__step-title">Anything else</h2>',
+                $this->placeholderGroup('notes', 'Notes'),
+                '<nav class="formbuilder__step-nav">',
+                '<button type="button" class="btn" data-form-step-prev>Previous</button>',
+                '<div class="formbuilder__actions formbuilder__actions--left"><input name="_submit"></div>',
+                '</nav>',
+                '</section>',
+                '</form>',
+            ]),
+            $this->placeholderRenderer()->render($definition, $form),
+        );
+    }
+
+    #[Test]
     public function renderWithoutFormElementHelperThrowsLogicException(): void
     {
         $renderer = new FormMarkup();
@@ -661,6 +967,23 @@ final class FormMarkupTest extends TestCase
     }
 
     #[Test]
+    #[DataProvider('selectClassProvider')]
+    public function singleSelectClassGainsTheSelectModifier(?string $class, string $expected): void
+    {
+        $form    = $this->buildForm();
+        $element = new Select('country');
+        $element->setAttribute('class', $class);
+        $form->add($element);
+
+        $this->renderer->render(FormDefinitionFactory::withFields([FormDefinitionFactory::field(
+            'select',
+            'country',
+        )]), $form);
+
+        static::assertSame($expected, $element->getAttribute('class'));
+    }
+
+    #[Test]
     public function singleSelectGetsControlSelectClassAndRoutesThroughFormElement(): void
     {
         $form    = $this->buildForm();
@@ -796,5 +1119,28 @@ final class FormMarkupTest extends TestCase
     private function buildForm(): Form
     {
         return new Form('test');
+    }
+
+    /**
+     * The markup of a group holding one row with one labelled text field,
+     * as {@see placeholderRenderer()} draws it.
+     */
+    private function placeholderGroup(string $name, string $label): string
+    {
+        return (
+            '<fieldset class="formbuilder__panel"><div class="formbuilder__panel-body"><div class="formbuilder__row">'
+                . '<div class="formbuilder__field">'
+                . "<label class=\"formbuilder__label\" for=\"{$name}\">{$label}</label>"
+                . "<div class=\"formbuilder__element\"><input name=\"{$name}\"></div>"
+                . '</div></div></div></fieldset>'
+        );
+    }
+
+    private function placeholderRenderer(): FormMarkup
+    {
+        $renderer = new FormMarkup();
+        $renderer->setFormElementHelper(new PlaceholderFormElement());
+
+        return $renderer;
     }
 }

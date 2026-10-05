@@ -26,6 +26,7 @@ use SplSubject;
 use function array_keys;
 use function array_map;
 use function iterator_to_array;
+use function str_repeat;
 
 #[Group('unit')]
 final class EmailNotificationRegistrarTest extends TestCase
@@ -89,6 +90,42 @@ final class EmailNotificationRegistrarTest extends TestCase
     }
 
     #[Test]
+    public function aDisabledNotificationDoesNotStopTheOnesAfterIt(): void
+    {
+        $transport = new InMemory();
+
+        (new EmailNotificationRegistrar(new TokenReplacer(), $transport))->update(self::subject([
+            'form' => self::form([
+                new NotificationDefinition(
+                    id: 1,
+                    name: 'Off',
+                    toAddress: 'a@example.com',
+                    enabled: false,
+                ),
+                new NotificationDefinition(
+                    id: 2,
+                    name: 'On',
+                    toAddress: 'b@example.com',
+                    subject: 'S',
+                ),
+            ]),
+        ]));
+
+        static::assertSame(
+            ['b@example.com'],
+            array_keys(iterator_to_array(
+                $transport->getLastMessage()?->getTo() ?? [],
+            )),
+        );
+    }
+
+    #[Test]
+    public function encodesMessagesAsUtf8(): void
+    {
+        static::assertSame('UTF-8', $this->send('Hi', [])->getEncoding());
+    }
+
+    #[Test]
     public function failuresWithoutALoggerAreSilent(): void
     {
         $transport = $this->createMock(TransportInterface::class);
@@ -143,6 +180,22 @@ final class EmailNotificationRegistrarTest extends TestCase
         static::assertStringContainsString(
             'multipart/alternative',
             $message->getHeaders()->get('Content-Type')->getFieldValue(),
+        );
+    }
+
+    #[Test]
+    public function htmlFallbackWrapsAtSeventyEightColumns(): void
+    {
+        $message = $this->send(
+            '<p>' . str_repeat('a', times: 76) . ' b</p><p>' . str_repeat('c', times: 77) . ' d</p>',
+            [],
+        );
+
+        $mime = $message->getBody();
+        static::assertInstanceOf(MimeMessage::class, $mime);
+        static::assertSame(
+            str_repeat('a', times: 76) . " b\n" . str_repeat('c', times: 77) . "\nd",
+            $mime->getParts()[0]->getRawContent(),
         );
     }
 
@@ -260,6 +313,12 @@ final class EmailNotificationRegistrarTest extends TestCase
             'values' => 'x',
             'entry'  => 'y',
         ]));
+    }
+
+    #[Test]
+    public function upperCaseMarkupMakesATemplateHtml(): void
+    {
+        static::assertInstanceOf(MimeMessage::class, $this->send('Hi<BR>there', [])->getBody());
     }
 
     /**

@@ -31,6 +31,17 @@ final class TokenReplacerFactoryTest extends TestCase
         ];
     }
 
+    /**
+     * @return array<string, array{array<string, mixed>, string}>
+     */
+    public static function siteContextProvider(): array
+    {
+        return [
+            'with a request host'    => [['HTTP_HOST' => 'example.com'], 'Site hi@example.com http://example.com'],
+            'without a request host' => [[], 'Site hi@example.com {site:base_url}'],
+        ];
+    }
+
     #[Test]
     public function configuredBaseUrlWinsOverTheRequest(): void
     {
@@ -63,6 +74,29 @@ final class TokenReplacerFactoryTest extends TestCase
         $tokens = (new TokenReplacerFactory())(new InMemoryContainer(['Request' => $request]));
 
         static::assertSame($expected, $tokens->replace('{site:base_url}', $this->form(), []));
+    }
+
+    /**
+     * @param array<string, mixed> $server
+     */
+    #[Test]
+    #[DataProvider('siteContextProvider')]
+    public function keepsEverySiteContextValue(array $server, string $expected): void
+    {
+        $request = new Request();
+        $request->setServer(new Parameters($server));
+        $container = new InMemoryContainer([
+            'Request' => $request,
+            'config'  => ['formbuilder' => ['site_context' => ['name' => 'Site', 'email' => 'hi@example.com']]],
+        ]);
+
+        $tokens = (new TokenReplacerFactory())($container);
+
+        static::assertSame($expected, $tokens->replace(
+            '{site:name} {site:email} {site:base_url}',
+            $this->form(),
+            [],
+        ));
     }
 
     #[Test]

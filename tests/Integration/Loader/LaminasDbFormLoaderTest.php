@@ -91,9 +91,9 @@ final class LaminasDbFormLoaderTest extends TestCase
             'required' => 1,
             'col_span' => 2,
             'sort' => 5,
-            'options_json' => '{"choices":[{"value":"m"}]}',
+            'options_json' => '{"choices":[{"value":"m"}],"multiple":false}',
             'validators_json' => '[{"type":"regex","options":{"pattern":"/m/"},"message":"No"},{"type":5},{"options":[]},"bad",{"type":"email","options":"x","message":["y"]}]',
-            'filters_json' => '["StringTrim","",3]',
+            'filters_json' => '["",3,"StringTrim","StripTags"]',
             'conditional_json' => '{"show_when":{"all":[]}}',
         ]);
 
@@ -116,7 +116,7 @@ final class LaminasDbFormLoaderTest extends TestCase
                 $field->sort,
             ],
         );
-        static::assertSame(['choices' => [['value' => 'm']]], $field->options);
+        static::assertSame(['choices' => [['value' => 'm']], 'multiple' => false], $field->options);
         static::assertEquals(
             [
                 new ValidatorDefinition('regex', ['pattern' => '/m/'], 'No'),
@@ -125,7 +125,7 @@ final class LaminasDbFormLoaderTest extends TestCase
             ],
             $field->validators,
         );
-        static::assertSame(['StringTrim'], $field->filters);
+        static::assertSame(['StringTrim', 'StripTags'], $field->filters);
         static::assertSame(['show_when' => ['all' => []]], $field->conditional);
     }
 
@@ -160,7 +160,7 @@ final class LaminasDbFormLoaderTest extends TestCase
             'url'          => 'https://crm.example/hook',
             'method'       => 'put',
             'secret'       => $signingKey,
-            'headers_json' => '{"X-Key":"abc","X-Bad":1}',
+            'headers_json' => '{"X-Bad":1,"X-Key":"abc","X-Trace":"on"}',
             'enabled'      => 0,
             'sort'         => 3,
         ]);
@@ -211,7 +211,7 @@ final class LaminasDbFormLoaderTest extends TestCase
         static::assertSame(['Plain', 'CRM'], array_map(static fn($w) => $w->name, $form->webhooks));
         $webhook = $form->webhooks[1];
         static::assertSame(
-            [$hook, 'https://crm.example/hook', 'PUT', $signingKey, ['X-Key' => 'abc'], false, 3],
+            [$hook, 'https://crm.example/hook', 'PUT', $signingKey, ['X-Key' => 'abc', 'X-Trace' => 'on'], false, 3],
             [
                 $webhook->id,
                 $webhook->url,
@@ -300,6 +300,24 @@ final class LaminasDbFormLoaderTest extends TestCase
         static::assertSame([], $groupDefinition->rows[0]->fields);
         static::assertSame(['name', 'email'], array_map(static fn($f) => $f->name, $groupDefinition->rows[1]->fields));
         static::assertSame([], $form->sections[1]->groups[0]->rows);
+    }
+
+    #[Test]
+    public function hydratesTheRowsOfEveryGroup(): void
+    {
+        $formId    = $this->insert('form', ['slug' => 'contact', 'title' => 'Contact']);
+        $section   = $this->insert('form_section', ['form_id' => $formId, 'key' => 'main']);
+        $first     = $this->insert('form_group', ['form_section_id' => $section, 'sort' => 0]);
+        $second    = $this->insert('form_group', ['form_section_id' => $section, 'sort' => 1]);
+        $firstRow  = $this->insert('form_row', ['form_group_id' => $first]);
+        $secondRow = $this->insert('form_row', ['form_group_id' => $second]);
+
+        $groups = $this->loader->loadById($formId)?->sections[0]->groups ?? [];
+
+        static::assertSame(
+            [[$firstRow], [$secondRow]],
+            array_map(static fn($group) => array_map(static fn($row) => $row->id, $group->rows), $groups),
+        );
     }
 
     #[Test]

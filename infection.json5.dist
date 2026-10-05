@@ -1,0 +1,83 @@
+{
+    "$schema": "vendor/infection/infection/resources/schema.json",
+    "source": { "directories": ["src"] },
+    "timeout": 10,
+    "threads": "max",
+    "logs": {
+        "text": "infection.log",
+        "summary": "summary.log",
+        "stryker": { "badge": "/^(main|master)$/" }
+    },
+    "mutators": {
+        "@default": true,
+        "ArrayOneItem": {
+            "ignore": [
+                // The attributes hold only the class at these early returns,
+                // so trimming them to one item changes nothing.
+                "Contenir\\FormBuilder\\Laminas\\Mvc\\Render\\FormMarkup::columnAttributes::202",
+                "Contenir\\FormBuilder\\Laminas\\Mvc\\Render\\FormMarkup::columnAttributes::207"
+            ]
+        },
+        "Assignment": {
+            "ignore": [
+                // $heading is '' just before, so `=` and `.=` build the same string.
+                "Contenir\\FormBuilder\\Laminas\\Mvc\\Render\\FormMarkup::renderSection::570"
+            ]
+        },
+        "CastString": {
+            "ignore": [
+                // A null element name becomes the key '' either way.
+                "Contenir\\FormBuilder\\Laminas\\Mvc\\Render\\FormMarkup::buildValueContext",
+                // A null list name renders the same as '': htmlAttribs()
+                // drops both and sprintf() prints both as ''.
+                "Contenir\\FormBuilder\\Laminas\\Mvc\\Render\\FormMarkup::renderChoiceList::402",
+                // preg_replace() only returns null on a regex error, and this
+                // fixed pattern without the u flag cannot fail.
+                "Contenir\\FormBuilder\\Laminas\\Mvc\\State\\FormStateStash::key",
+                // ValidatorDefinition::fromArray() casts a scalar type and
+                // message to string itself.
+                "Contenir\\FormBuilder\\Laminas\\Mvc\\Loader\\LaminasDbFormLoader::validators"
+            ]
+        },
+        "DecrementInteger": {
+            "ignore": [
+                // implode() ignores keys, so the start index of the
+                // placeholder list makes no difference.
+                "Contenir\\FormBuilder\\Laminas\\Mvc\\Loader\\LaminasDbFormLoader::fetchChildren::327"
+            ]
+        },
+        "IncrementInteger": {
+            "ignore": [
+                // implode() ignores keys, so the start index of the
+                // placeholder list makes no difference.
+                "Contenir\\FormBuilder\\Laminas\\Mvc\\Loader\\LaminasDbFormLoader::fetchChildren::327",
+                // The default column span is clamped to at most 4, so a
+                // default of 5 gives the same span.
+                "Contenir\\FormBuilder\\Laminas\\Mvc\\Loader\\LaminasDbFormLoader::buildField::208"
+            ]
+        },
+        "UnwrapArrayFilter": {
+            "ignore": [
+                // After the trim() the only empty part is the one from an
+                // empty list, and '' fails the address check that follows.
+                "Contenir\\FormBuilder\\Laminas\\Mvc\\Registrar\\EmailNotificationRegistrar::splitAddresses"
+            ]
+        },
+        "UnwrapTrim": {
+            "ignore": [
+                // The leading or trailing empty parts that trim() avoids are
+                // dropped by the array_filter() that follows.
+                "Contenir\\FormBuilder\\Laminas\\Mvc\\Registrar\\EmailNotificationRegistrar::splitAddresses"
+            ]
+        },
+        "ReturnRemoval": {
+            "ignore": [
+                // Without the early return, offsetGet() of a missing key
+                // yields the container's private default (always null) and
+                // the shape check returns null anyway.
+                "Contenir\\FormBuilder\\Laminas\\Mvc\\State\\FormStateStash::consume::52"
+            ]
+        }
+    },
+    "staticAnalysisTool": "mago"
+}

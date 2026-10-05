@@ -109,6 +109,7 @@ composer static-analysis   # mago analyze
 composer test              # unit suite: stubs and in-memory session, no database
 composer test-integration  # integration suite: in-memory SQLite with the forms schema
 composer test-coverage     # both suites, clover.xml for Codecov
+composer mutation-test     # Infection over both suites (needs Xdebug or PCOV)
 ```
 
 ## License

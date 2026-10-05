@@ -20,6 +20,35 @@ use PHPUnit\Framework\TestCase;
 final class FormMarkupTest extends TestCase
 {
     #[Test]
+    public function rendersPublicMarkupUnlessPreviewIsAsked(): void
+    {
+        [$renderer] = ViewRendererBuilder::build();
+        $helper = new FormMarkup();
+        $helper->setView($renderer);
+
+        $html = $helper(FormDefinitionFactory::withFields([]), new Form());
+
+        static::assertStringContainsString('<fieldset class="formbuilder__panel">', $html);
+    }
+
+    #[Test]
+    public function rendersThroughTheViewsEscapeHtmlHelper(): void
+    {
+        [$renderer] = ViewRendererBuilder::build();
+        $renderer->getHelperPluginManager()->setService('escapeHtml', static fn(string $value): string => "[{$value}]");
+        $helper = new FormMarkup();
+        $helper->setView($renderer);
+        $form = new Form();
+        $form->add(new Text('name'));
+
+        $html = $helper(FormDefinitionFactory::withFields([FormDefinitionFactory::field('text', 'name', [
+            'label' => 'Name',
+        ])]), $form);
+
+        static::assertStringContainsString('>[Name]</label>', $html);
+    }
+
+    #[Test]
     public function rendersThroughTheViewsEscaperAndFormElementHelper(): void
     {
         [$renderer] = ViewRendererBuilder::build();

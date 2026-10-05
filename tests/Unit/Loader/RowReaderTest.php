@@ -20,14 +20,17 @@ final class RowReaderTest extends TestCase
     public function loaderSkipsRowsThatAreNotArrays(): void
     {
         $result = $this->createStub(ResultInterface::class);
-        $result->method('valid')->willReturnOnConsecutiveCalls(true, false);
-        $result->method('current')->willReturn('not a row');
+        $result->method('valid')->willReturnOnConsecutiveCalls(true, true, false);
+        $result->method('current')->willReturnOnConsecutiveCalls('not a row', ['form_id' => 3, 'slug' => 'c']);
         $statement = $this->createStub(StatementInterface::class);
         $statement->method('execute')->willReturn($result);
         $adapter = $this->createStub(Adapter::class);
         $adapter->method('createStatement')->willReturn($statement);
 
-        static::assertSame([], (new LaminasDbFormLoader($adapter))->listSummaries());
+        static::assertSame(
+            [['id' => 3, 'slug' => 'c', 'title' => '', 'status' => '']],
+            (new LaminasDbFormLoader($adapter))->listSummaries(),
+        );
     }
 
     #[Test]
@@ -45,9 +48,10 @@ final class RowReaderTest extends TestCase
         ]);
 
         static::assertSame(
-            [7, 3, null, false, true, '12', 'd', null, ['a' => 1], [], null, null, null],
+            [7, 0, 3, null, false, true, '12', 'd', null, ['a' => 1], [], null, null, null],
             [
                 $read->int('int'),
+                $read->int('missing'),
                 $read->int('bad', default: 3),
                 $read->nullableInt('missing'),
                 $read->bool('flag', default: true),
