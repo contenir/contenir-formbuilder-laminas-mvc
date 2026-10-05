@@ -45,8 +45,8 @@ use const JSON_UNESCAPED_SLASHES;
  * Walks a {@see FormDefinition} and emits the form markup, dispatching each
  * input through the Laminas `formElement` view helper so that delegators
  * registered against `Laminas\Form\View\Helper\FormElement` (e.g. the
- * page-cache CSRF-disable delegator shipped by `contenir/cache-laminas-mvc`)
- * fire for formbuilder forms.
+ * page-cache CSRF-disable delegator shipped by
+ * `contenir/contenir-cache-laminas-mvc`) fire for formbuilder forms.
  *
  * Radio and multi-checkbox lists keep bespoke per-option markup because the
  * stock Laminas helpers wrap each `<input>` in a `<label>`, which is

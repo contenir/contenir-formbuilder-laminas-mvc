@@ -116,3 +116,23 @@ Server variables are only read from a `PhpEnvironment\Request`; a plain
   `disabled=""`, which disables the input) and non-scalar attributes.
 - `FormStateStash::consume()` documents `errors` as Laminas' nested messages
   (`array<array-key, mixed>`), which is what it always returned.
+
+## Package renamed in 2.2
+
+From 2.2, the package is published as
+`contenir/contenir-formbuilder-laminas-mvc`. It declares `replace` for
+`contenir/formbuilder-laminas-mvc`, so the two can never be installed
+together. Switch the requirement:
+
+```bash
+composer remove contenir/formbuilder-laminas-mvc && composer require contenir/contenir-formbuilder-laminas-mvc:^2.2
+```
+
+2.2 also requires `contenir/contenir-formbuilder` `^2.2` (the renamed
+`contenir/formbuilder`) instead of `contenir/formbuilder`. If you require
+`contenir/formbuilder` directly, switch that requirement as well. Sites that
+use file fields should likewise move from `contenir/storage` to
+`contenir/contenir-storage` `^2.2`.
+
+No code changes are needed: namespaces, classes, the module name, routes and
+templates are unchanged.

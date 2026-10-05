@@ -11,7 +11,7 @@ Renders with `Contenir\FormBuilder\Laminas\Mvc\Render\FormMarkup`, using the
 view's `escapeHtml` helper for escaping and its `formElement` helper for
 inputs. Routing inputs through `formElement` means delegators registered
 against `Laminas\Form\View\Helper\FormElement` (for example the page-cache
-CSRF delegator in `contenir/cache-laminas-mvc`) see formbuilder forms too.
+CSRF delegator in `contenir/contenir-cache-laminas-mvc`) see formbuilder forms too.
 
 ## `Render\FormMarkup`
 

@@ -24,7 +24,7 @@ use LogicException;
  *    through the same helper as a hand-rolled `<?= $this->formElement($e) ?>`
  *    call. Delegators registered against `Laminas\Form\View\Helper\FormElement`
  *    (e.g. the page-cache CSRF-disable delegator shipped by
- *    `contenir/cache-laminas-mvc`) therefore observe formbuilder renders too.
+ *    `contenir/contenir-cache-laminas-mvc`) therefore observe formbuilder renders too.
  *
  * @api
  *
