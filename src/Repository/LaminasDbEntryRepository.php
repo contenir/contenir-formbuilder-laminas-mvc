@@ -23,22 +23,33 @@ use const JSON_UNESCAPED_UNICODE;
  * admin4's `EntryRepository` and aren't reproduced here because Sites
  * don't read entries; that's the admin module's job. Add them if a
  * future Site grows an entry-management surface.
+ *
+ * @api
  */
 class LaminasDbEntryRepository
 {
-    public const STATUS_PENDING  = 'pending';
-    public const STATUS_COMPLETE = 'complete';
-    public const STATUS_SPAM     = 'spam';
-    public const STATUS_ARCHIVE  = 'archive';
-    public const STATUS_REDACTED = 'redacted';
+    public const string STATUS_PENDING  = 'pending';
+    public const string STATUS_COMPLETE = 'complete';
+    public const string STATUS_SPAM     = 'spam';
+    public const string STATUS_ARCHIVE  = 'archive';
+    public const string STATUS_REDACTED = 'redacted';
 
-    public function __construct(private Adapter $adapter)
-    {
-    }
+    public function __construct(
+        private Adapter $adapter,
+    ) {}
 
     /**
-     * @param array<string, mixed> $values  field name => value
-     * @param array<string, mixed> $meta
+     * Inserts the entry and one value row per field in a transaction, and
+     * returns the new entry id. Scalars go to `value_text`, arrays to
+     * `value_json`; other values are stored as NULL.
+     *
+     * @param array<array-key, mixed> $values  field name => value
+     * @param array<array-key, mixed> $meta
+     *
+     * @throws Throwable Any database error, after the transaction is rolled back.
+     *
+     * @mago-expect lint:excessive-parameter-list Public 0.x signature, kept for 2.0.
+     * @mago-expect analysis:mixed-assignment Submitted values are untyped; each is stored by its type.
      */
     public function record(
         int $formId,
@@ -54,28 +65,29 @@ class LaminasDbEntryRepository
         try {
             $this->adapter->query(
                 'INSERT INTO form_entry (form_id, submitted_at, ip, user_id, status, meta_json) '
-                . 'VALUES (?, ?, ?, ?, ?, ?)',
+                    . 'VALUES (?, ?, ?, ?, ?, ?)',
                 [
                     $formId,
                     (new DateTimeImmutable())->format('Y-m-d H:i:s'),
                     $ip,
                     $userId,
                     $status,
-                    $meta === []
+                    [] === $meta
                         ? null
                         : json_encode($meta, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 ],
             );
             $entryId = (int) $this->adapter->getDriver()->getLastGeneratedValue();
 
-            $insertValueSql = 'INSERT INTO form_entry_value '
+            $insertValueSql =
+                'INSERT INTO form_entry_value '
                 . '(form_entry_id, form_field_id, field_name, value_text, value_json) '
                 . 'VALUES (?, ?, ?, ?, ?)';
             foreach ($values as $name => $value) {
                 $this->adapter->query($insertValueSql, [
                     $entryId,
                     null,
-                    (string) $name,
+                    $name,
                     is_scalar($value) ? (string) $value : null,
                     is_array($value)
                         ? json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)

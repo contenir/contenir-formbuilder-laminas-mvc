@@ -4,18 +4,37 @@ declare(strict_types=1);
 
 namespace Contenir\FormBuilder\Laminas\Mvc\Factory;
 
+use Contenir\FormBuilder\Laminas\Mvc\Container\Services;
 use Contenir\FormBuilder\Laminas\Mvc\Loader\LaminasDbFormLoader;
 use Laminas\Db\Adapter\Adapter;
+use Psr\Container\ContainerExceptionInterface;
 use Psr\Container\ContainerInterface;
+use UnexpectedValueException;
 
-class LaminasDbFormLoaderFactory
+use function is_string;
+
+/**
+ * Uses the database adapter named by `formbuilder.db_adapter`
+ * (default `Laminas\Db\Adapter\Adapter`).
+ *
+ * @api
+ */
+final class LaminasDbFormLoaderFactory
 {
+    /**
+     * @throws ContainerExceptionInterface
+     * @throws UnexpectedValueException
+     *
+     * @mago-expect analysis:mixed-assignment Configuration is untyped input; the adapter id is checked with is_string().
+     */
     public function __invoke(ContainerInterface $container): LaminasDbFormLoader
     {
-        $config       = $container->get('config')['formbuilder'] ?? [];
-        $adapterId    = (string) ($config['db_adapter'] ?? Adapter::class);
-        /** @var Adapter $adapter */
-        $adapter      = $container->get($adapterId);
-        return new LaminasDbFormLoader($adapter);
+        $adapterId = Services::config($container)['db_adapter'] ?? null;
+
+        return new LaminasDbFormLoader(Services::get(
+            $container,
+            is_string($adapterId) ? $adapterId : Adapter::class,
+            Adapter::class,
+        ));
     }
 }

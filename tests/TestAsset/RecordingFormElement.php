@@ -7,6 +7,8 @@ namespace Contenir\FormBuilder\Laminas\Mvc\Tests\TestAsset;
 use Laminas\Form\ElementInterface;
 use Laminas\Form\View\Helper\FormElement;
 
+use function array_map;
+
 /**
  * `FormElement` helper subclass that records every element handed to it.
  *
@@ -31,6 +33,6 @@ final class RecordingFormElement extends FormElement
     /** @return list<class-string<ElementInterface>> */
     public function renderedClasses(): array
     {
-        return array_map(static fn ($element) => $element::class, $this->rendered);
+        return array_map(static fn($element) => $element::class, $this->rendered);
     }
 }

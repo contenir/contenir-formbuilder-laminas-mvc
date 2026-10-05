@@ -6,8 +6,10 @@ namespace Contenir\FormBuilder\Laminas\Mvc\Tests\Unit\State;
 
 use Contenir\FormBuilder\Laminas\Mvc\State\FormStateStash;
 use Laminas\Session\Container;
+use Laminas\Session\SessionManager;
 use Laminas\Session\Storage\ArrayStorage;
 use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 #[Group('unit')]
@@ -15,26 +17,56 @@ final class FormStateStashTest extends TestCase
 {
     private FormStateStash $stash;
 
-    protected function setUp(): void
+    #[Test]
+    public function consumeIsOneShot(): void
     {
-        Container::setDefaultManager(null);
-        $manager = (new \Laminas\Session\SessionManager())->setStorage(new ArrayStorage());
-        Container::setDefaultManager($manager);
+        $this->stash->store('contact', ['name' => 'Alice'], []);
 
-        $this->stash = new FormStateStash(new Container('FormStateStashTest'));
+        $this->stash->consume('contact');
+
+        static::assertNull($this->stash->consume('contact'));
     }
 
-    protected function tearDown(): void
+    #[Test]
+    public function consumeReturnsNullWhenNothingStashed(): void
     {
-        Container::setDefaultManager(null);
+        static::assertNull($this->stash->consume('contact'));
     }
 
-    public function testConsumeReturnsNullWhenNothingStashed(): void
+    #[Test]
+    public function entriesAreScopedPerSlug(): void
     {
-        self::assertNull($this->stash->consume('contact'));
+        $this->stash->store('contact', ['name' => 'Alice'], []);
+        $this->stash->store('enquiry', ['name' => 'Bob'], []);
+
+        static::assertSame(['name' => 'Alice'], $this->stash->consume('contact')['values'] ?? null);
+        static::assertSame(['name' => 'Bob'], $this->stash->consume('enquiry')['values'] ?? null);
     }
 
-    public function testStoreThenConsumeReturnsTheStashedPayload(): void
+    #[Test]
+    public function slugsThatDifferOnlyByCaseShareAnEntry(): void
+    {
+        $this->stash->store('Contact', ['name' => 'Alice'], []);
+
+        $consumed = $this->stash->consume('contact');
+
+        static::assertNotNull($consumed);
+        static::assertSame(['name' => 'Alice'], $consumed['values']);
+    }
+
+    #[Test]
+    public function slugsWithDisallowedCharsAreNormalisedToTheSameKey(): void
+    {
+        $this->stash->store('contact form!', ['name' => 'Alice'], []);
+
+        $consumed = $this->stash->consume('contact_form_');
+
+        static::assertNotNull($consumed);
+        static::assertSame(['name' => 'Alice'], $consumed['values']);
+    }
+
+    #[Test]
+    public function storeThenConsumeReturnsTheStashedPayload(): void
     {
         $this->stash->store(
             'contact',
@@ -44,7 +76,7 @@ final class FormStateStashTest extends TestCase
 
         $consumed = $this->stash->consume('contact');
 
-        self::assertSame(
+        static::assertSame(
             [
                 'values' => ['name' => 'Alice', 'email' => 'alice@example.com'],
                 'errors' => ['email' => ['Invalid email']],
@@ -53,41 +85,17 @@ final class FormStateStashTest extends TestCase
         );
     }
 
-    public function testConsumeIsOneShot(): void
+    protected function setUp(): void
     {
-        $this->stash->store('contact', ['name' => 'Alice'], []);
+        Container::setDefaultManager(null);
+        $manager = (new SessionManager())->setStorage(new ArrayStorage());
+        Container::setDefaultManager($manager);
 
-        $this->stash->consume('contact');
-
-        self::assertNull($this->stash->consume('contact'));
+        $this->stash = new FormStateStash(new Container('FormStateStashTest'));
     }
 
-    public function testEntriesAreScopedPerSlug(): void
+    protected function tearDown(): void
     {
-        $this->stash->store('contact', ['name' => 'Alice'], []);
-        $this->stash->store('enquiry', ['name' => 'Bob'], []);
-
-        self::assertSame(['name' => 'Alice'], $this->stash->consume('contact')['values'] ?? null);
-        self::assertSame(['name' => 'Bob'], $this->stash->consume('enquiry')['values'] ?? null);
-    }
-
-    public function testSlugsThatDifferOnlyByCaseShareAnEntry(): void
-    {
-        $this->stash->store('Contact', ['name' => 'Alice'], []);
-
-        $consumed = $this->stash->consume('contact');
-
-        self::assertNotNull($consumed);
-        self::assertSame(['name' => 'Alice'], $consumed['values']);
-    }
-
-    public function testSlugsWithDisallowedCharsAreNormalisedToTheSameKey(): void
-    {
-        $this->stash->store('contact form!', ['name' => 'Alice'], []);
-
-        $consumed = $this->stash->consume('contact_form_');
-
-        self::assertNotNull($consumed);
-        self::assertSame(['name' => 'Alice'], $consumed['values']);
+        Container::setDefaultManager(null);
     }
 }

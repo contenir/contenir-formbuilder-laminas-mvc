@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Contenir\FormBuilder\Laminas\Mvc\Factory;
 
 use Contenir\FormBuilder\FieldType\FieldTypeRegistry;
+use Contenir\FormBuilder\Laminas\Mvc\Container\Services;
 use Contenir\FormBuilder\Laminas\Mvc\Controller\SubmitController;
 use Contenir\FormBuilder\Laminas\Mvc\Loader\LaminasDbFormLoader;
 use Contenir\FormBuilder\Laminas\Mvc\Registrar\EmailNotificationRegistrar;
@@ -17,65 +18,76 @@ use Contenir\FormBuilder\Service\TokenReplacer;
 use Contenir\FormBuilder\Validator\ValidatorFactory;
 use Contenir\Storage\StorageManager;
 use Laminas\Mail\Transport\TransportInterface;
-use Laminas\Mvc\Controller\ControllerManager;
+use Psr\Container\ContainerExceptionInterface;
 use Psr\Container\ContainerInterface;
 use SplObserver;
+use UnexpectedValueException;
 
 use function is_array;
 use function is_string;
 
-class SubmitControllerFactory
+/**
+ * Wires the submit pipeline. Observers are attached in this order: the
+ * entry store, webhooks, email notifications (only when a mail transport is
+ * registered), then each `formbuilder.observers` service id that resolves to
+ * an SplObserver. A registered `Contenir\Storage\StorageManager` enables file
+ * uploads.
+ *
+ * @api
+ */
+final class SubmitControllerFactory
 {
-    public function __invoke(ContainerInterface $container): SubmitController
+    /**
+     * @return list<SplObserver>
+     *
+     * @throws ContainerExceptionInterface
+     * @throws UnexpectedValueException
+     *
+     * @mago-expect analysis:mixed-assignment Configuration is untyped input; each id is checked with is_string().
+     */
+    private function observers(ContainerInterface $container): array
     {
-        $config   = $container->get('config')['formbuilder'] ?? [];
-        $services = $container instanceof ControllerManager
-            ? $container->getServiceLocator()
-            : $container;
-
-        $storage = null;
-        if ($services->has(StorageManager::class)) {
-            $candidate = $services->get(StorageManager::class);
-            if ($candidate instanceof StorageManager) {
-                $storage = $candidate;
-            }
-        }
-
-        $service = new FormSubmissionService(
-            new FormBuilderService(new FieldTypeRegistry(), new ValidatorFactory()),
-            $storage,
-        );
-
         $observers = [
-            $services->get(StoreSubmissionRegistrar::class),
-            $services->get(WebhookRegistrar::class),
+            Services::get($container, StoreSubmissionRegistrar::class, StoreSubmissionRegistrar::class),
+            Services::get($container, WebhookRegistrar::class, WebhookRegistrar::class),
         ];
 
-        // Email is conditional — wired only when the host has registered
-        // a Laminas\Mail TransportInterface. Sites without outbound mail
-        // simply don't get the registrar, no error.
-        if ($services->has(TransportInterface::class)) {
-            $observers[] = $services->get(EmailNotificationRegistrar::class);
+        if ($container->has(TransportInterface::class)) {
+            $observers[] = Services::get(
+                $container,
+                EmailNotificationRegistrar::class,
+                EmailNotificationRegistrar::class,
+            );
         }
 
-        // Extra observers from config — service-manager ids resolved at
-        // submit time, attached after the built-ins.
-        foreach (is_array($config['observers'] ?? null) ? $config['observers'] : [] as $entry) {
-            if (! is_string($entry) || ! $services->has($entry)) {
-                continue;
-            }
-            $resolved = $services->get($entry);
-            if ($resolved instanceof SplObserver) {
-                $observers[] = $resolved;
+        $extra = Services::config($container)['observers'] ?? [];
+        foreach (is_array($extra) ? $extra : [] as $id) {
+            $observer = is_string($id) ? Services::optional($container, $id, SplObserver::class) : null;
+            if (null !== $observer) {
+                $observers[] = $observer;
             }
         }
+
+        return $observers;
+    }
+
+    /**
+     * @throws ContainerExceptionInterface
+     * @throws UnexpectedValueException
+     */
+    public function __invoke(ContainerInterface $container): SubmitController
+    {
+        $service = new FormSubmissionService(
+            new FormBuilderService(new FieldTypeRegistry(), new ValidatorFactory()),
+            Services::optional($container, StorageManager::class, StorageManager::class),
+        );
 
         return new SubmitController(
-            $services->get(LaminasDbFormLoader::class),
+            Services::get($container, LaminasDbFormLoader::class, LaminasDbFormLoader::class),
             $service,
-            $services->get(FormStateStash::class),
-            $services->get(TokenReplacer::class),
-            $observers,
+            Services::get($container, FormStateStash::class, FormStateStash::class),
+            Services::get($container, TokenReplacer::class, TokenReplacer::class),
+            $this->observers($container),
         );
     }
 }

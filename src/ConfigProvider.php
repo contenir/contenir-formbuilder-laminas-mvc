@@ -20,27 +20,56 @@ use Contenir\FormBuilder\Laminas\Mvc\Registrar\StoreSubmissionRegistrar;
 use Contenir\FormBuilder\Laminas\Mvc\Repository\LaminasDbEntryRepository;
 use Contenir\FormBuilder\Laminas\Mvc\State\FormStateStash;
 use Contenir\FormBuilder\Laminas\Mvc\View\Helper\FormMarkup;
-use Contenir\FormBuilder\Laminas\Mvc\View\Helper\FormStashedState;
 use Contenir\FormBuilder\Registrar\WebhookRegistrar;
 use Contenir\FormBuilder\Service\TokenReplacer;
+use Laminas\Db\Adapter\Adapter;
 
 /**
  * Returns the merged Laminas-MVC config consumed by Module::getConfig().
  *
  * Kept separate so a future Mezzio adapter can require the same array
  * without reaching into the MVC Module class.
+ *
+ * @api
  */
 final class ConfigProvider
 {
     /** @return array<string, mixed> */
-    public function __invoke(): array
+    public function getControllers(): array
     {
         return [
-            'service_manager' => $this->getDependencies(),
-            'controllers'     => $this->getControllers(),
-            'view_helpers'    => $this->getViewHelpers(),
-            'router'          => $this->getRouter(),
-            'formbuilder'     => $this->getDefaults(),
+            'factories' => [
+                SubmitController::class => SubmitControllerFactory::class,
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public function getDefaults(): array
+    {
+        return [
+            // Service id of the Laminas\Db\Adapter\Adapter the loader and
+            // repository should consume. Defaults to the conventional
+            // 'Laminas\Db\Adapter\Adapter' service name; override in the
+            // consuming site's `formbuilder.global.php` if your DB adapter
+            // is registered under a different key.
+            'db_adapter' => Adapter::class,
+            // Static values for {site:*} TokenReplacer expansion.
+            'site_context' => [],
+            // Map of additional TokenReplacer namespaces => service-manager
+            // ids. Each service must resolve to a callable of shape
+            // `function (string $key): string`. Wired by
+            // {@see Factory\TokenReplacerFactory}; lets consumers add
+            // namespaces like `{settings:foo.bar}` without touching the
+            // package. The same TokenReplacer instance is shared between
+            // EmailNotificationRegistrar and SubmitController.
+            'token_resolvers' => [],
+            // Factory list of additional submission observers. Each entry
+            // can be a service-manager id (string) — resolved at submit
+            // time and attached to FormSubmissionService alongside the
+            // built-in StoreSubmissionRegistrar. Sites add email /
+            // webhook / custom registrars here.
+            'observers' => [],
         ];
     }
 
@@ -49,23 +78,35 @@ final class ConfigProvider
     {
         return [
             'factories' => [
-                LaminasDbFormLoader::class          => LaminasDbFormLoaderFactory::class,
-                LaminasDbEntryRepository::class     => LaminasDbEntryRepositoryFactory::class,
-                StoreSubmissionRegistrar::class     => StoreSubmissionRegistrarFactory::class,
-                EmailNotificationRegistrar::class   => EmailNotificationRegistrarFactory::class,
-                WebhookRegistrar::class             => WebhookRegistrarFactory::class,
-                FormStateStash::class               => FormStateStashFactory::class,
-                TokenReplacer::class                => TokenReplacerFactory::class,
+                LaminasDbFormLoader::class        => LaminasDbFormLoaderFactory::class,
+                LaminasDbEntryRepository::class   => LaminasDbEntryRepositoryFactory::class,
+                StoreSubmissionRegistrar::class   => StoreSubmissionRegistrarFactory::class,
+                EmailNotificationRegistrar::class => EmailNotificationRegistrarFactory::class,
+                WebhookRegistrar::class           => WebhookRegistrarFactory::class,
+                FormStateStash::class             => FormStateStashFactory::class,
+                TokenReplacer::class              => TokenReplacerFactory::class,
             ],
         ];
     }
 
     /** @return array<string, mixed> */
-    public function getControllers(): array
+    public function getRouter(): array
     {
         return [
-            'factories' => [
-                SubmitController::class => SubmitControllerFactory::class,
+            'routes' => [
+                'forms-submit' => [
+                    'type'    => 'segment',
+                    'options' => [
+                        'route'       => '/forms/submit/:slug',
+                        'defaults'    => [
+                            'controller' => SubmitController::class,
+                            'action'     => 'submit',
+                        ],
+                        'constraints' => [
+                            'slug' => '[a-z0-9][a-z0-9\-]*',
+                        ],
+                    ],
+                ],
             ],
         ];
     }
@@ -91,60 +132,21 @@ final class ConfigProvider
             'invokables' => [
                 'formMarkup' => FormMarkup::class,
             ],
-            'factories' => [
+            'factories'  => [
                 'formStashedState' => FormStashedStateFactory::class,
             ],
         ];
     }
 
     /** @return array<string, mixed> */
-    public function getRouter(): array
+    public function __invoke(): array
     {
         return [
-            'routes' => [
-                'forms-submit' => [
-                    'type'    => 'segment',
-                    'options' => [
-                        'route'    => '/forms/submit/:slug',
-                        'defaults' => [
-                            'controller' => SubmitController::class,
-                            'action'     => 'submit',
-                        ],
-                        'constraints' => [
-                            'slug' => '[a-z0-9][a-z0-9\-]*',
-                        ],
-                    ],
-                ],
-            ],
-        ];
-    }
-
-    /** @return array<string, mixed> */
-    public function getDefaults(): array
-    {
-        return [
-            // Service id of the Laminas\Db\Adapter\Adapter the loader and
-            // repository should consume. Defaults to the conventional
-            // 'Laminas\Db\Adapter\Adapter' service name; override in the
-            // consuming site's `formbuilder.global.php` if your DB adapter
-            // is registered under a different key.
-            'db_adapter' => 'Laminas\Db\Adapter\Adapter',
-            // Static values for {site:*} TokenReplacer expansion.
-            'site_context' => [],
-            // Map of additional TokenReplacer namespaces => service-manager
-            // ids. Each service must resolve to a callable of shape
-            // `function (string $key): string`. Wired by
-            // {@see Factory\TokenReplacerFactory}; lets consumers add
-            // namespaces like `{settings:foo.bar}` without touching the
-            // package. The same TokenReplacer instance is shared between
-            // EmailNotificationRegistrar and SubmitController.
-            'token_resolvers' => [],
-            // Factory list of additional submission observers. Each entry
-            // can be a service-manager id (string) — resolved at submit
-            // time and attached to FormSubmissionService alongside the
-            // built-in StoreSubmissionRegistrar. Sites add email /
-            // webhook / custom registrars here.
-            'observers' => [],
+            'service_manager' => $this->getDependencies(),
+            'controllers'     => $this->getControllers(),
+            'view_helpers'    => $this->getViewHelpers(),
+            'router'          => $this->getRouter(),
+            'formbuilder'     => $this->getDefaults(),
         ];
     }
 }

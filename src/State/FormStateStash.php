@@ -24,10 +24,12 @@ use function strtolower;
  * page do not collide. Read once and discarded — a second render with
  * no new submission shows a blank form, which is what the user expects
  * after they navigated away and came back.
+ *
+ * @api
  */
 class FormStateStash
 {
-    private const SESSION_NAMESPACE = 'ContenirFormBuilderFlash';
+    private const string SESSION_NAMESPACE = 'ContenirFormBuilderFlash';
 
     private Container $container;
 
@@ -37,47 +39,44 @@ class FormStateStash
     }
 
     /**
-     * @param array<string, mixed>              $values
-     * @param array<string, array<int, string>> $errors
-     */
-    public function store(string $slug, array $values, array $errors): void
-    {
-        $this->container[$this->key($slug)] = [
-            'values' => $values,
-            'errors' => $errors,
-        ];
-    }
-
-    /**
-     * Read and remove the stash for $slug.
+     * Read and remove the stash for $slug. Malformed entries are discarded.
      *
-     * @return ?array{values: array<string, mixed>, errors: array<string, array<int, string>>}
+     * @return array{values: array<array-key, mixed>, errors: array<array-key, mixed>}|null
+     *
+     * @mago-expect analysis:mixed-assignment Session data is untyped; the shape is checked before it is returned.
      */
     public function consume(string $slug): ?array
     {
         $key = $this->key($slug);
-        if (! isset($this->container[$key])) {
-            return null;
-        }
-        $data = $this->container[$key];
-        unset($this->container[$key]);
-
-        if (! is_array($data) || ! isset($data['values'], $data['errors'])) {
-            return null;
-        }
-        if (! is_array($data['values']) || ! is_array($data['errors'])) {
+        if (! $this->container->offsetExists($key)) {
             return null;
         }
 
-        return [
-            'values' => $data['values'],
-            'errors' => $data['errors'],
-        ];
+        $data = $this->container->offsetGet($key);
+        $this->container->offsetUnset($key);
+
+        $values = is_array($data) ? $data['values'] ?? null : null;
+        $errors = is_array($data) ? $data['errors'] ?? null : null;
+        if (! is_array($values) || ! is_array($errors)) {
+            return null;
+        }
+
+        return ['values' => $values, 'errors' => $errors];
+    }
+
+    /**
+     * @param array<array-key, mixed> $values Submitted values, keyed by field name.
+     * @param array<array-key, mixed> $errors Laminas validation messages, keyed by field name.
+     */
+    public function store(string $slug, array $values, array $errors): void
+    {
+        $this->container->offsetSet($this->key($slug), ['values' => $values, 'errors' => $errors]);
     }
 
     private function key(string $slug): string
     {
-        $clean = preg_replace('/[^a-z0-9_\-]/', '_', strtolower($slug)) ?? '';
-        return 'form_' . $clean;
+        $clean = (string) preg_replace('/[^a-z0-9_\-]/', replacement: '_', subject: strtolower($slug));
+
+        return "form_{$clean}";
     }
 }

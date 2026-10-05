@@ -7,8 +7,10 @@ namespace Contenir\FormBuilder\Laminas\Mvc;
 /**
  * Laminas MVC entry point. Routes + view helpers + controller +
  * service factories are merged in via ConfigProvider.
+ *
+ * @api
  */
-class Module
+final class Module
 {
     /** @return array<string, mixed> */
     public function getConfig(): array

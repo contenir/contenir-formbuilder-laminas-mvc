@@ -10,6 +10,8 @@ use Laminas\ServiceManager\ServiceManager;
 use Laminas\View\HelperPluginManager;
 use Laminas\View\Renderer\PhpRenderer;
 
+use function assert;
+
 /**
  * Builds a {@see PhpRenderer} pre-wired with the laminas-form view-helper
  * aliases and factories, so tests can exercise the renderer with a real
@@ -22,7 +24,7 @@ final class ViewRendererBuilder
     /** @return array{0: PhpRenderer, 1: FormElement} */
     public static function build(): array
     {
-        $formConfig = (new FormConfigProvider())();
+        $formConfig    = (new FormConfigProvider())();
         $helperManager = new HelperPluginManager(
             new ServiceManager(),
             $formConfig['view_helpers'] ?? [],
@@ -32,7 +34,7 @@ final class ViewRendererBuilder
         $renderer->setHelperPluginManager($helperManager);
 
         $formElement = $helperManager->get('formElement');
-        \assert($formElement instanceof FormElement);
+        assert($formElement instanceof FormElement);
 
         return [$renderer, $formElement];
     }
