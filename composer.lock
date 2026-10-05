@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "871e584a6107a1e601f59ec6bd899bb4",
+    "content-hash": "5f02aa698368dbd649f7ea5c4c3f16e6",
     "packages": [
         {
             "name": "brick/varexporter",
@@ -57,35 +57,44 @@
         },
         {
             "name": "contenir/formbuilder",
-            "version": "v0.1.4",
+            "version": "v2.1.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/contenir/formbuilder.git",
-                "reference": "5c3163869a07abd34c84d746c4d088db62c97b3d"
+                "reference": "5c78095850f3f37dc60070e7a3d757f230cce3b9"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/contenir/formbuilder/zipball/5c3163869a07abd34c84d746c4d088db62c97b3d",
-                "reference": "5c3163869a07abd34c84d746c4d088db62c97b3d",
+                "url": "https://api.github.com/repos/contenir/formbuilder/zipball/5c78095850f3f37dc60070e7a3d757f230cce3b9",
+                "reference": "5c78095850f3f37dc60070e7a3d757f230cce3b9",
                 "shasum": ""
             },
             "require": {
                 "laminas/laminas-filter": "^2.30",
                 "laminas/laminas-form": "^3.20",
                 "laminas/laminas-inputfilter": "^2.30",
+                "laminas/laminas-session": "^2.16",
                 "laminas/laminas-validator": "^2.50 || ^3.0",
-                "php": "^8.1 || ^8.2 || ^8.3",
+                "php": "~8.3.0 || ~8.4.0 || ~8.5.0",
                 "psr/log": "^1.0 || ^2.0 || ^3.0"
             },
+            "conflict": {
+                "laminas/laminas-stdlib": "<3.21"
+            },
             "require-dev": {
-                "contenir/storage": "^0.1.0",
-                "phpunit/phpunit": "^11.0",
-                "squizlabs/php_codesniffer": "^3.10"
+                "contenir/storage": "^0.1.0 || ^2.0",
+                "php-db/phpdb-qa-tools": "0.1.x-dev",
+                "phpunit/phpunit": "^11.5.42"
             },
             "suggest": {
                 "contenir/storage": "Required for the file field type. Pass a Contenir\\Storage\\StorageManager into FormSubmissionService when uploads need to land on a configured storage profile."
             },
             "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "2.1.x-dev"
+                }
+            },
             "autoload": {
                 "psr-4": {
                     "Contenir\\FormBuilder\\": "src/"
@@ -98,9 +107,9 @@
             "description": "Framework-agnostic form-builder engine for Contenir CMS — runtime-editable form definitions, builder-form construction, server-side submission validation.",
             "support": {
                 "issues": "https://github.com/contenir/formbuilder/issues",
-                "source": "https://github.com/contenir/formbuilder/tree/v0.1.4"
+                "source": "https://github.com/contenir/formbuilder/tree/v2.1.0"
             },
-            "time": "2026-05-10T13:18:28+00:00"
+            "time": "2026-10-05T10:55:11+00:00"
         },
         {
             "name": "laminas/laminas-config",
