@@ -5,36 +5,109 @@ declare(strict_types=1);
 namespace Contenir\FormBuilder\Laminas\Mvc\Tests\Unit\State;
 
 use Contenir\FormBuilder\Laminas\Mvc\State\FormStateStash;
+use Contenir\FormBuilder\Laminas\Mvc\Tests\Trait\InMemorySessionTrait;
 use Laminas\Session\Container;
-use Laminas\Session\Storage\ArrayStorage;
+use Override;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 #[Group('unit')]
 final class FormStateStashTest extends TestCase
 {
+    use InMemorySessionTrait;
+
+    private Container $container;
+
     private FormStateStash $stash;
 
-    protected function setUp(): void
+    /**
+     * @return array<string, array{mixed}>
+     */
+    public static function malformedEntryProvider(): array
     {
-        Container::setDefaultManager(null);
-        $manager = (new \Laminas\Session\SessionManager())->setStorage(new ArrayStorage());
-        Container::setDefaultManager($manager);
-
-        $this->stash = new FormStateStash(new Container('FormStateStashTest'));
+        return [
+            'not an array'     => ['x'],
+            'missing errors'   => [['values' => []]],
+            'non-array values' => [['values' => 'x', 'errors' => []]],
+            'non-array errors' => [['values' => [], 'errors' => 'x']],
+        ];
     }
 
-    protected function tearDown(): void
+    #[Test]
+    public function consumeIsOneShot(): void
     {
-        Container::setDefaultManager(null);
+        $this->stash->store('contact', ['name' => 'Alice'], []);
+
+        $this->stash->consume('contact');
+
+        static::assertNull($this->stash->consume('contact'));
     }
 
-    public function testConsumeReturnsNullWhenNothingStashed(): void
+    #[Test]
+    public function consumeReturnsNullWhenNothingStashed(): void
     {
-        self::assertNull($this->stash->consume('contact'));
+        static::assertNull($this->stash->consume('contact'));
     }
 
-    public function testStoreThenConsumeReturnsTheStashedPayload(): void
+    #[Test]
+    public function defaultContainerUsesTheFormbuilderNamespace(): void
+    {
+        (new FormStateStash())->store('contact', ['a' => 1], []);
+
+        static::assertSame(
+            ['values' => ['a' => 1], 'errors' => []],
+            (new Container('ContenirFormBuilderFlash'))['form_contact'],
+        );
+    }
+
+    #[Test]
+    public function entriesAreScopedPerSlug(): void
+    {
+        $this->stash->store('contact', ['name' => 'Alice'], []);
+        $this->stash->store('enquiry', ['name' => 'Bob'], []);
+
+        static::assertSame(['name' => 'Alice'], $this->stash->consume('contact')['values'] ?? null);
+        static::assertSame(['name' => 'Bob'], $this->stash->consume('enquiry')['values'] ?? null);
+    }
+
+    #[Test]
+    #[DataProvider('malformedEntryProvider')]
+    public function malformedEntriesAreDiscarded(mixed $entry): void
+    {
+        $this->container['form_contact'] = $entry;
+
+        static::assertSame([null, false], [
+            $this->stash->consume('contact'),
+            $this->container->offsetExists('form_contact'),
+        ]);
+    }
+
+    #[Test]
+    public function slugsThatDifferOnlyByCaseShareAnEntry(): void
+    {
+        $this->stash->store('Contact', ['name' => 'Alice'], []);
+
+        $consumed = $this->stash->consume('contact');
+
+        static::assertNotNull($consumed);
+        static::assertSame(['name' => 'Alice'], $consumed['values']);
+    }
+
+    #[Test]
+    public function slugsWithDisallowedCharsAreNormalisedToTheSameKey(): void
+    {
+        $this->stash->store('contact form!', ['name' => 'Alice'], []);
+
+        $consumed = $this->stash->consume('contact_form_');
+
+        static::assertNotNull($consumed);
+        static::assertSame(['name' => 'Alice'], $consumed['values']);
+    }
+
+    #[Test]
+    public function storeThenConsumeReturnsTheStashedPayload(): void
     {
         $this->stash->store(
             'contact',
@@ -44,7 +117,7 @@ final class FormStateStashTest extends TestCase
 
         $consumed = $this->stash->consume('contact');
 
-        self::assertSame(
+        static::assertSame(
             [
                 'values' => ['name' => 'Alice', 'email' => 'alice@example.com'],
                 'errors' => ['email' => ['Invalid email']],
@@ -53,41 +126,17 @@ final class FormStateStashTest extends TestCase
         );
     }
 
-    public function testConsumeIsOneShot(): void
+    #[Override]
+    protected function setUp(): void
     {
-        $this->stash->store('contact', ['name' => 'Alice'], []);
-
-        $this->stash->consume('contact');
-
-        self::assertNull($this->stash->consume('contact'));
+        $this->setUpInMemorySession();
+        $this->container = new Container('FormStateStashTest');
+        $this->stash     = new FormStateStash($this->container);
     }
 
-    public function testEntriesAreScopedPerSlug(): void
+    #[Override]
+    protected function tearDown(): void
     {
-        $this->stash->store('contact', ['name' => 'Alice'], []);
-        $this->stash->store('enquiry', ['name' => 'Bob'], []);
-
-        self::assertSame(['name' => 'Alice'], $this->stash->consume('contact')['values'] ?? null);
-        self::assertSame(['name' => 'Bob'], $this->stash->consume('enquiry')['values'] ?? null);
-    }
-
-    public function testSlugsThatDifferOnlyByCaseShareAnEntry(): void
-    {
-        $this->stash->store('Contact', ['name' => 'Alice'], []);
-
-        $consumed = $this->stash->consume('contact');
-
-        self::assertNotNull($consumed);
-        self::assertSame(['name' => 'Alice'], $consumed['values']);
-    }
-
-    public function testSlugsWithDisallowedCharsAreNormalisedToTheSameKey(): void
-    {
-        $this->stash->store('contact form!', ['name' => 'Alice'], []);
-
-        $consumed = $this->stash->consume('contact_form_');
-
-        self::assertNotNull($consumed);
-        self::assertSame(['name' => 'Alice'], $consumed['values']);
+        $this->tearDownInMemorySession();
     }
 }

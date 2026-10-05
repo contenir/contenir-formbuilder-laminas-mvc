@@ -4,22 +4,24 @@ declare(strict_types=1);
 
 namespace Contenir\FormBuilder\Laminas\Mvc\Factory;
 
+use Contenir\FormBuilder\Laminas\Mvc\Container\Services;
 use Contenir\FormBuilder\Registrar\WebhookRegistrar;
-use Psr\Log\LoggerInterface;
+use Psr\Container\ContainerExceptionInterface;
 use Psr\Container\ContainerInterface;
+use Psr\Log\LoggerInterface;
 
-class WebhookRegistrarFactory
+/**
+ * The PSR-3 logger is used when one is registered.
+ *
+ * @api
+ */
+final class WebhookRegistrarFactory
 {
+    /**
+     * @throws ContainerExceptionInterface
+     */
     public function __invoke(ContainerInterface $container): WebhookRegistrar
     {
-        $logger = null;
-        if ($container->has(LoggerInterface::class)) {
-            $candidate = $container->get(LoggerInterface::class);
-            if ($candidate instanceof LoggerInterface) {
-                $logger = $candidate;
-            }
-        }
-
-        return new WebhookRegistrar($logger);
+        return new WebhookRegistrar(Services::optional($container, LoggerInterface::class, LoggerInterface::class));
     }
 }

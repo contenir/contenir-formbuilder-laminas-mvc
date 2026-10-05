@@ -5,23 +5,31 @@ declare(strict_types=1);
 namespace Contenir\FormBuilder\Laminas\Mvc\Controller;
 
 use Contenir\FormBuilder\Definition\FormDefinition;
-use Contenir\FormBuilder\Laminas\Mvc\Loader\LaminasDbFormLoader;
+use Contenir\FormBuilder\Laminas\Mvc\Loader\FormLoaderInterface;
 use Contenir\FormBuilder\Laminas\Mvc\State\FormStateStash;
 use Contenir\FormBuilder\Service\FormSubmissionService;
+use Contenir\FormBuilder\Service\SubmissionResult;
 use Contenir\FormBuilder\Service\TokenReplacer;
+use Contenir\Storage\Exception\StorageException;
+use Laminas\Form\Exception\ExceptionInterface as FormException;
+use Laminas\Http\PhpEnvironment\Request as PhpEnvironmentRequest;
+use Laminas\Http\Request as HttpRequest;
 use Laminas\Http\Response;
 use Laminas\Mvc\Controller\AbstractActionController;
+use Laminas\Stdlib\ParametersInterface;
 use Laminas\View\Model\JsonModel;
 use SplObserver;
 
 use function http_build_query;
 use function in_array;
 use function is_array;
+use function is_scalar;
 use function is_string;
 use function parse_str;
 use function preg_match;
 use function str_contains;
-use function strpos;
+use function strlen;
+use function strstr;
 use function substr;
 
 /**
@@ -57,128 +65,96 @@ use function substr;
  *     title: ?string,
  *     message: ?string,
  * }
+ *
+ * @api
+ *
+ * @mago-expect lint:cyclomatic-complexity Kept whole for 2.0 (one action with its response modes); splitting it is a proposed follow-up.
  */
-class SubmitController extends AbstractActionController
+final class SubmitController extends AbstractActionController
 {
-    /** @param list<SplObserver> $observers */
+    /**
+     * @param list<SplObserver> $observers Attached to the submission service, in order.
+     */
     public function __construct(
-        private LaminasDbFormLoader $loader,
+        private FormLoaderInterface $loader,
         private FormSubmissionService $service,
         private FormStateStash $stash,
         private TokenReplacer $tokens,
-        private array $observers = [],
+        array $observers = [],
     ) {
         foreach ($observers as $observer) {
             $service->attach($observer);
         }
     }
 
+    /**
+     * Answers JSON (405, 400, 404, 422 or 200) when the client accepts JSON
+     * or the request cannot be handled, and otherwise redirects.
+     *
+     * @return JsonModel|Response
+     *
+     * @throws FormException When Laminas rejects the built form.
+     * @throws StorageException When the storage backend cannot store an upload.
+     *
+     * @mago-expect analysis:mixed-assignment Route and POST parameters are untyped; each is checked before use.
+     */
     public function submitAction(): mixed
     {
         $request = $this->getRequest();
-        if (! $request->isPost()) {
-            return $this->respondJson(['error' => 'Method not allowed'], 405);
+        if (! $request instanceof HttpRequest || ! $request->isPost()) {
+            return $this->respondJson(['error' => 'Method not allowed'], status: 405);
         }
 
-        $slug = (string) $this->params()->fromRoute('slug', '');
-        if ($slug === '') {
-            return $this->respondJson(['error' => 'Missing slug'], 400);
+        $slug = $this->getEvent()->getRouteMatch()?->getParam('slug');
+        if (! is_string($slug) || '' === $slug) {
+            return $this->respondJson(['error' => 'Missing slug'], status: 400);
         }
 
         $form = $this->loader->loadBySlug($slug);
-        if ($form === null) {
-            return $this->respondJson(['error' => 'Form not found'], 404);
+        if (null === $form) {
+            return $this->respondJson(['error' => 'Form not found'], status: 404);
         }
 
-        $context = [
-            'ip'      => $this->getServerVar('REMOTE_ADDR'),
+        /** @var ParametersInterface $postParameters */
+        $postParameters = $request->getPost();
+        /** @var ParametersInterface $fileParameters */
+        $fileParameters = $request->getFiles();
+        /** @var array<string, mixed> $post */
+        $post = $postParameters->toArray();
+        /** @var array<string, mixed> $files */
+        $files  = $fileParameters->toArray();
+        $anchor = $post['_anchor'] ?? '';
+        $anchor = $this->resolveAnchor(is_string($anchor) ? $anchor : '');
+        $result = $this->service->submit($form, $post, $files, [
+            'ip'      => $this->serverVar('REMOTE_ADDR'),
             'user_id' => null,
             'meta'    => [
-                'user_agent' => (string) $this->getServerVar('HTTP_USER_AGENT'),
-                'referer'    => (string) $this->getServerVar('HTTP_REFERER'),
+                'user_agent' => $this->serverVar('HTTP_USER_AGENT'),
+                'referer'    => $this->serverVar('HTTP_REFERER'),
             ],
-        ];
+        ]);
 
-        $post   = $request->getPost()->toArray();
-        $files  = $_FILES;
-        $anchor = $this->resolveAnchor(is_string($post['_anchor'] ?? null) ? $post['_anchor'] : '');
-        $result = $this->service->submit($form, $post, $files, $context);
-
-        $isSuccess = $result->valid || $result->isSpam;
-        if (! $isSuccess) {
+        if (! $result->valid && ! $result->isSpam) {
             if ($this->wantsJson()) {
-                return $this->respondJson(['ok' => false, 'errors' => $result->errors], 422);
+                return $this->respondJson(['ok' => false, 'errors' => $result->errors], status: 422);
             }
-            $this->stash->store($form->slug, $this->stripInternalFields($post), $result->errors);
+
+            unset($post['_anchor']);
+            $this->stash->store($form->slug, $post, $result->errors);
+
             return $this->redirectToReferrer(null, $anchor);
         }
 
-        $success = $this->resolveSuccessSettings($form);
-        $entry   = $result->entryId !== null ? ['id' => $result->entryId] : [];
-
-        if ($this->wantsJson()) {
-            $payload = ['ok' => true, 'mode' => $success['mode']];
-            if (
-                $success['mode'] === FormDefinition::SUCCESS_REDIRECT_URL
-                && is_string($success['redirect_url']) && $success['redirect_url'] !== ''
-            ) {
-                $payload['url'] = $this->tokens->replaceForUrl(
-                    $success['redirect_url'],
-                    $form,
-                    $result->values,
-                    $entry,
-                );
-            } elseif ($success['mode'] === FormDefinition::SUCCESS_INLINE_MESSAGE) {
-                $payload['title']   = $this->tokens->replace(
-                    (string) $success['title'],
-                    $form,
-                    $result->values,
-                    $entry,
-                );
-                $payload['message'] = $this->tokens->replace(
-                    (string) $success['message'],
-                    $form,
-                    $result->values,
-                    $entry,
-                );
-            }
-            return $this->respondJson($payload, 200);
-        }
-
-        if (
-            $success['mode'] === FormDefinition::SUCCESS_REDIRECT_URL
-            && is_string($success['redirect_url']) && $success['redirect_url'] !== ''
-        ) {
-            $url = $this->tokens->replaceForUrl(
-                $success['redirect_url'],
-                $form,
-                $result->values,
-                $entry,
-            );
-            return $this->redirect()->toUrl($url);
-        }
-
-        return $this->redirectToReferrer($form->slug, $anchor);
+        return $this->respondToSuccess($form, $result, $anchor);
     }
 
-    /**
-     * @return SuccessSettings
-     */
-    private function resolveSuccessSettings(FormDefinition $form): array
+    private function redirectTo(string $url): Response
     {
-        $stored = is_array($form->settings['success'] ?? null) ? $form->settings['success'] : [];
+        $response = new Response();
+        $response->getHeaders()->addHeaderLine('Location', $url);
+        $response->setStatusCode(302);
 
-        $mode = $stored['mode'] ?? null;
-        $mode = is_string($mode) && in_array($mode, FormDefinition::SUCCESS_MODES, true)
-            ? $mode
-            : FormDefinition::SUCCESS_REDIRECT_REFERRER;
-
-        return [
-            'mode'         => $mode,
-            'redirect_url' => is_string($stored['redirect_url'] ?? null) ? $stored['redirect_url'] : null,
-            'title'        => is_string($stored['title'] ?? null) ? $stored['title'] : null,
-            'message'      => is_string($stored['message'] ?? null) ? $stored['message'] : null,
-        ];
+        return $response;
     }
 
     /**
@@ -193,31 +169,21 @@ class SubmitController extends AbstractActionController
      * so two submissions in the same session don't accumulate
      * `?submit=...&submit=...`.
      */
-    private function redirectToReferrer(?string $successSlug, string $anchor = ''): Response
+    private function redirectToReferrer(?string $successSlug, string $anchor): Response
     {
-        $referer  = (string) $this->getServerVar('HTTP_REFERER', '/');
-        $hashPos  = strpos($referer, '#');
-        if ($hashPos !== false) {
-            $referer = substr($referer, 0, $hashPos);
-        }
-        $queryPos = strpos($referer, '?');
-        $base     = $queryPos !== false ? substr($referer, 0, $queryPos) : $referer;
-        $rawQuery = $queryPos !== false ? substr($referer, $queryPos + 1) : '';
-
-        parse_str($rawQuery, $query);
+        $referer = $this->serverVar('HTTP_REFERER', default: '/');
+        $referer = (string) strstr("{$referer}#", needle: '#', before_needle: true);
+        $base    = (string) strstr("{$referer}?", needle: '?', before_needle: true);
+        $query   = [];
+        parse_str(substr($referer, strlen($base) + 1), $query);
         unset($query['submit']);
-        if ($successSlug !== null && $successSlug !== '') {
+        if (null !== $successSlug) {
             $query['submit'] = $successSlug;
         }
 
-        $url = $base;
-        if ($query !== []) {
-            $url .= '?' . http_build_query($query);
-        }
-        if ($anchor !== '') {
-            $url .= '#' . $anchor;
-        }
-        return $this->redirect()->toUrl($url);
+        $url = [] === $query ? $base : "{$base}?" . http_build_query($query);
+
+        return $this->redirectTo('' === $anchor ? $url : "{$url}#{$anchor}");
     }
 
     /**
@@ -230,44 +196,97 @@ class SubmitController extends AbstractActionController
      */
     private function resolveAnchor(string $value): string
     {
-        if ($value === '') {
-            return '';
-        }
         return preg_match('/^[A-Za-z][\w\-]*$/', $value) === 1 ? $value : '';
     }
 
     /**
-     * Drop the controller's own helper fields before stashing.
+     * @return SuccessSettings
      *
-     * These are render-time hints (anchor target, CSRF tokens emitted
-     * by Laminas\Form, the honeypot) — re-presenting them in the form
-     * would either leak the wrong value or be rejected on the next
-     * submission.
-     *
-     * @param array<string, mixed> $post
-     * @return array<string, mixed>
+     * @mago-expect analysis:mixed-assignment Form settings are decoded JSON; each value is checked before use.
      */
-    private function stripInternalFields(array $post): array
+    private function resolveSuccessSettings(FormDefinition $form): array
     {
-        unset($post['_anchor']);
-        return $post;
+        $stored = $form->settings['success'] ?? [];
+        $stored = is_array($stored) ? $stored : [];
+
+        $mode = $stored['mode'] ?? null;
+        $mode = in_array($mode, FormDefinition::SUCCESS_MODES, strict: true)
+            ? $mode
+            : FormDefinition::SUCCESS_REDIRECT_REFERRER;
+
+        $url     = $stored['redirect_url'] ?? null;
+        $title   = $stored['title'] ?? null;
+        $message = $stored['message'] ?? null;
+
+        return [
+            'mode'         => $mode,
+            'redirect_url' => is_string($url) && '' !== $url ? $url : null,
+            'title'        => is_string($title) ? $title : null,
+            'message'      => is_string($message) ? $message : null,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     *
+     * @mago-expect analysis:deprecated-class JsonModel is the laminas-view 2.x JSON response; its replacement needs laminas-view 3.
+     */
+    private function respondJson(array $payload, int $status): JsonModel
+    {
+        $response = $this->getResponse();
+        if ($response instanceof Response) {
+            $response->setStatusCode($status);
+        }
+
+        return new JsonModel($payload);
+    }
+
+    /**
+     * Valid and spam submissions answer alike, so bots learn nothing.
+     *
+     * @return JsonModel|Response
+     */
+    private function respondToSuccess(
+        FormDefinition $form,
+        SubmissionResult $result,
+        string $anchor,
+    ): JsonModel|Response {
+        $success = $this->resolveSuccessSettings($form);
+        $entry   = null === $result->entryId ? [] : ['id' => $result->entryId];
+        $url     = FormDefinition::SUCCESS_REDIRECT_URL === $success['mode'] && null !== $success['redirect_url']
+            ? $this->tokens->replaceForUrl($success['redirect_url'], $form, $result->values, $entry)
+            : null;
+
+        if (! $this->wantsJson()) {
+            return null === $url ? $this->redirectToReferrer($form->slug, $anchor) : $this->redirectTo($url);
+        }
+
+        $payload = ['ok' => true, 'mode' => $success['mode']];
+        if (null !== $url) {
+            $payload['url'] = $url;
+        }
+
+        if (FormDefinition::SUCCESS_INLINE_MESSAGE === $success['mode']) {
+            $payload['title']   = $this->tokens->replace((string) $success['title'], $form, $result->values, $entry);
+            $payload['message'] = $this->tokens->replace((string) $success['message'], $form, $result->values, $entry);
+        }
+
+        return $this->respondJson($payload, status: 200);
+    }
+
+    /**
+     * @mago-expect analysis:mixed-assignment Server variables are untyped; only scalars are used.
+     */
+    private function serverVar(string $key, string $default = ''): string
+    {
+        $request = $this->getRequest();
+        $value   = $request instanceof PhpEnvironmentRequest ? $request->getServer($key, $default) : $default;
+
+        return is_scalar($value) ? (string) $value : $default;
     }
 
     private function wantsJson(): bool
     {
-        $accept = (string) $this->getServerVar('HTTP_ACCEPT');
-        return str_contains($accept, 'application/json');
-    }
-
-    private function getServerVar(string $key, string $default = ''): string
-    {
-        return (string) ($_SERVER[$key] ?? $default);
-    }
-
-    /** @param array<string, mixed> $payload */
-    private function respondJson(array $payload, int $status): JsonModel
-    {
-        $this->getResponse()->setStatusCode($status);
-        return new JsonModel($payload);
+        return str_contains($this->serverVar('HTTP_ACCEPT'), 'application/json');
     }
 }

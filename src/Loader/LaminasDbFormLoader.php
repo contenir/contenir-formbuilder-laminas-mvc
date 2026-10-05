@@ -13,16 +13,15 @@ use Contenir\FormBuilder\Definition\SectionDefinition;
 use Contenir\FormBuilder\Definition\ValidatorDefinition;
 use Contenir\FormBuilder\Definition\WebhookDefinition;
 use Laminas\Db\Adapter\Adapter;
-use Laminas\Db\Adapter\Driver\ResultInterface;
+use Override;
 
 use function array_fill;
-use function array_filter;
 use function array_map;
 use function count;
 use function implode;
 use function is_array;
+use function is_scalar;
 use function is_string;
-use function json_decode;
 use function max;
 use function min;
 use function strtoupper;
@@ -35,34 +34,114 @@ use function strtoupper;
  * per level: form → sections → groups → rows → fields, plus
  * notifications and webhooks) so cost is fixed regardless of form
  * size — no N+1 traversal.
+ *
+ * @api
+ *
+ * @mago-expect lint:cyclomatic-complexity Kept whole for 2.0 (one builder per table); splitting it is a proposed follow-up.
+ * @mago-expect lint:kan-defect Kept whole for 2.0 (one builder per table); splitting it is a proposed follow-up.
+ * @mago-expect lint:too-many-methods Kept whole for 2.0 (one builder per table); splitting it is a proposed follow-up.
  */
-class LaminasDbFormLoader
+final class LaminasDbFormLoader implements FormLoaderInterface
 {
-    public function __construct(private Adapter $adapter)
-    {
-    }
+    public function __construct(
+        private Adapter $adapter,
+    ) {}
 
-    public function loadById(int $formId): ?FormDefinition
+    /**
+     * @param array<array-key, mixed> $raw
+     *
+     * @return list<string>
+     *
+     * @mago-expect analysis:mixed-assignment Decoded JSON is untyped; only non-empty strings are kept.
+     */
+    private static function filters(array $raw): array
     {
-        $row = $this->fetchOne('SELECT * FROM form WHERE form_id = ?', [$formId]);
-        return $row !== null ? $this->hydrate($row) : null;
-    }
+        $filters = [];
+        foreach ($raw as $value) {
+            if (! (is_string($value) && '' !== $value)) {
+                continue;
+            }
 
-    public function loadBySlug(string $slug): ?FormDefinition
-    {
-        $row = $this->fetchOne('SELECT * FROM form WHERE slug = ?', [$slug]);
-        return $row !== null ? $this->hydrate($row) : null;
-    }
-
-    /** @return list<FormDefinition> */
-    public function loadAll(): array
-    {
-        $rows  = $this->fetchAll('SELECT * FROM form ORDER BY title ASC', []);
-        $forms = [];
-        foreach ($rows as $row) {
-            $forms[] = $this->hydrate($row);
+            $filters[] = $value;
         }
-        return $forms;
+
+        return $filters;
+    }
+
+    /**
+     * @param array<array-key, mixed> $raw
+     *
+     * @return array<string, string>
+     *
+     * @mago-expect analysis:mixed-assignment Decoded JSON is untyped; only string values are kept.
+     */
+    private static function headers(array $raw): array
+    {
+        $headers = [];
+        foreach ($raw as $name => $value) {
+            if (! is_string($value)) {
+                continue;
+            }
+
+            $headers[(string) $name] = $value;
+        }
+
+        return $headers;
+    }
+
+    /**
+     * @param array<array-key, mixed> $values
+     *
+     * @return array<string, mixed>
+     *
+     * @mago-expect analysis:mixed-assignment JSON objects are untyped; values are passed through.
+     */
+    private static function stringKeys(array $values): array
+    {
+        $out = [];
+        foreach ($values as $key => $value) {
+            $out[(string) $key] = $value;
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array<array-key, mixed>|null $values
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function stringKeysOrNull(?array $values): ?array
+    {
+        return null === $values ? null : self::stringKeys($values);
+    }
+
+    /**
+     * @param array<array-key, mixed> $raw
+     *
+     * @return list<ValidatorDefinition>
+     *
+     * @mago-expect analysis:mixed-assignment Decoded JSON is untyped; each entry is checked before use.
+     */
+    private static function validators(array $raw): array
+    {
+        $validators = [];
+        foreach ($raw as $entry) {
+            $type = is_array($entry) ? $entry['type'] ?? null : null;
+            if (! is_scalar($type)) {
+                continue;
+            }
+
+            $options      = $entry['options'] ?? [];
+            $message      = $entry['message'] ?? null;
+            $validators[] = ValidatorDefinition::fromArray([
+                'type'    => (string) $type,
+                'options' => is_array($options) ? self::stringKeys($options) : [],
+                'message' => is_scalar($message) ? (string) $message : null,
+            ]);
+        }
+
+        return $validators;
     }
 
     /**
@@ -70,323 +149,290 @@ class LaminasDbFormLoader
      *
      * @return list<array{id: int, slug: string, title: string, status: string}>
      */
+    #[Override]
     public function listSummaries(): array
     {
-        $rows = $this->fetchAll(
-            'SELECT form_id, slug, title, status FROM form ORDER BY title ASC',
-            [],
-        );
-        $out = [];
-        foreach ($rows as $row) {
-            $out[] = [
-                'id'     => (int) $row['form_id'],
-                'slug'   => (string) $row['slug'],
-                'title'  => (string) $row['title'],
-                'status' => (string) $row['status'],
-            ];
-        }
-        return $out;
-    }
+        return array_map(
+            static function (array $row): array {
+                $read = new RowReader($row);
 
-    /** @param array<string, mixed> $formRow */
-    private function hydrate(array $formRow): FormDefinition
-    {
-        $formId = (int) $formRow['form_id'];
-
-        $sectionRows = $this->fetchAll(
-            'SELECT * FROM form_section WHERE form_id = ? ORDER BY sort ASC, form_section_id ASC',
-            [$formId],
-        );
-        $notificationRows = $this->fetchAll(
-            'SELECT * FROM form_notification WHERE form_id = ? ORDER BY sort ASC, form_notification_id ASC',
-            [$formId],
-        );
-        $webhookRows = $this->fetchAll(
-            'SELECT * FROM form_webhook WHERE form_id = ? ORDER BY sort ASC, form_webhook_id ASC',
-            [$formId],
-        );
-
-        $sectionIds = array_map(static fn (array $r): int => (int) $r['form_section_id'], $sectionRows);
-        $groupRows  = $sectionIds === []
-            ? []
-            : $this->fetchAll(
-                'SELECT * FROM form_group WHERE form_section_id IN (' . $this->placeholders($sectionIds) . ') '
-                . 'ORDER BY sort ASC, form_group_id ASC',
-                $sectionIds,
-            );
-
-        $groupIds = array_map(static fn (array $r): int => (int) $r['form_group_id'], $groupRows);
-        $rowRows  = $groupIds === []
-            ? []
-            : $this->fetchAll(
-                'SELECT * FROM form_row WHERE form_group_id IN (' . $this->placeholders($groupIds) . ') '
-                . 'ORDER BY sort ASC, form_row_id ASC',
-                $groupIds,
-            );
-
-        $rowIds    = array_map(static fn (array $r): int => (int) $r['form_row_id'], $rowRows);
-        $fieldRows = $rowIds === []
-            ? []
-            : $this->fetchAll(
-                'SELECT * FROM form_field WHERE form_row_id IN (' . $this->placeholders($rowIds) . ') '
-                . 'ORDER BY sort ASC, form_field_id ASC',
-                $rowIds,
-            );
-
-        $fieldsByRow     = $this->groupFields($fieldRows);
-        $rowsByGroup     = $this->groupRows($rowRows, $fieldsByRow);
-        $groupsBySection = $this->groupGroups($groupRows, $rowsByGroup);
-        $sections        = $this->buildSections($sectionRows, $groupsBySection);
-        $notifications   = $this->buildNotifications($notificationRows);
-        $webhooks        = $this->buildWebhooks($webhookRows);
-
-        return new FormDefinition(
-            id:              $formId,
-            slug:            (string) $formRow['slug'],
-            title:           (string) $formRow['title'],
-            description:     $formRow['description'] !== null ? (string) $formRow['description'] : null,
-            layoutMode:      (string) ($formRow['layout_mode'] ?? FormDefinition::LAYOUT_SINGLE),
-            submitLabel:     (string) ($formRow['submit_label'] ?? 'Submit'),
-            submitAlignment: (string) ($formRow['submit_alignment'] ?? 'left'),
-            settings:        $this->decodeJson($formRow['settings_json'] ?? null),
-            retentionDays:   isset($formRow['retention_days']) && $formRow['retention_days'] !== null
-                ? (int) $formRow['retention_days']
-                : null,
-            status:          (string) ($formRow['status'] ?? FormDefinition::STATUS_ACTIVE),
-            sections:        $sections,
-            notifications:   $notifications,
-            webhooks:        $webhooks,
+                return [
+                    'id'     => $read->int('form_id'),
+                    'slug'   => $read->string('slug'),
+                    'title'  => $read->string('title'),
+                    'status' => $read->string('status'),
+                ];
+            },
+            $this->fetchAll('SELECT form_id, slug, title, status FROM form ORDER BY title ASC', []),
         );
     }
 
     /**
-     * @param list<array<string, mixed>> $rows
+     * @return list<FormDefinition>
+     */
+    #[Override]
+    public function loadAll(): array
+    {
+        return array_map($this->hydrate(...), $this->fetchAll('SELECT * FROM form ORDER BY title ASC', []));
+    }
+
+    #[Override]
+    public function loadById(int $formId): ?FormDefinition
+    {
+        return $this->loadOne('SELECT * FROM form WHERE form_id = ?', [$formId]);
+    }
+
+    #[Override]
+    public function loadBySlug(string $slug): ?FormDefinition
+    {
+        return $this->loadOne('SELECT * FROM form WHERE slug = ?', [$slug]);
+    }
+
+    /**
+     * @param array<array-key, mixed> $row
+     */
+    private function buildField(array $row): FieldDefinition
+    {
+        $read = new RowReader($row);
+
+        return new FieldDefinition(
+            id: $read->int('form_field_id'),
+            type: $read->string('type'),
+            name: $read->string('name'),
+            label: $read->nullableString('label'),
+            showLabel: $read->bool('show_label', default: true),
+            description: $read->nullableString('description'),
+            placeholder: $read->nullableString('placeholder'),
+            defaultValue: $read->nullableString('default_value'),
+            required: $read->bool('required', default: false),
+            colSpan: max(1, min(4, $read->int('col_span', default: 4))),
+            sort: $read->int('sort'),
+            options: self::stringKeys($read->json('options_json')),
+            validators: self::validators($read->json('validators_json')),
+            filters: self::filters($read->json('filters_json')),
+            conditional: self::stringKeysOrNull($read->nullableJson('conditional_json')),
+        );
+    }
+
+    /**
+     * @param list<array<array-key, mixed>> $rows
+     *
+     * @return list<NotificationDefinition>
+     */
+    private function buildNotifications(array $rows): array
+    {
+        return array_map(static function (array $row): NotificationDefinition {
+            $read = new RowReader($row);
+
+            return new NotificationDefinition(
+                id: $read->int('form_notification_id'),
+                name: $read->string('name'),
+                trigger: $read->string('trigger', default: 'submit'),
+                toAddress: $read->string('to_address'),
+                fromAddress: $read->nullableString('from_address'),
+                replyTo: $read->nullableString('reply_to'),
+                subject: $read->string('subject'),
+                bodyTemplate: $read->nullableString('body_template'),
+                conditions: self::stringKeysOrNull($read->nullableJson('conditions_json')),
+                enabled: $read->bool('enabled', default: true),
+                sort: $read->int('sort'),
+            );
+        }, $rows);
+    }
+
+    /**
+     * @param list<array<array-key, mixed>> $sectionRows
+     * @param array<int, list<GroupDefinition>> $groupsBySection
+     *
+     * @return list<SectionDefinition>
+     */
+    private function buildSections(array $sectionRows, array $groupsBySection): array
+    {
+        return array_map(static function (array $row) use ($groupsBySection): SectionDefinition {
+            $read = new RowReader($row);
+            $id   = $read->int('form_section_id');
+
+            return new SectionDefinition(
+                id: $id,
+                key: $read->string('key'),
+                legend: $read->nullableString('legend'),
+                description: $read->nullableString('description'),
+                sort: $read->int('sort'),
+                groups: $groupsBySection[$id] ?? [],
+            );
+        }, $sectionRows);
+    }
+
+    /**
+     * @param list<array<array-key, mixed>> $rows
+     *
      * @return list<WebhookDefinition>
      */
     private function buildWebhooks(array $rows): array
     {
-        $webhooks = [];
-        foreach ($rows as $row) {
-            $headers    = $this->decodeJson($row['headers_json'] ?? null);
-            $webhooks[] = new WebhookDefinition(
-                id:      (int) $row['form_webhook_id'],
-                name:    (string) $row['name'],
-                url:     (string) $row['url'],
-                method:  strtoupper((string) ($row['method'] ?? 'POST')),
-                secret:  $row['secret'] !== null && $row['secret'] !== ''
-                    ? (string) $row['secret']
-                    : null,
-                headers: array_filter(
-                    $headers,
-                    static fn ($v): bool => is_string($v),
-                ),
-                enabled: (bool) ($row['enabled'] ?? true),
-                sort:    (int) ($row['sort'] ?? 0),
+        return array_map(static function (array $row): WebhookDefinition {
+            $read = new RowReader($row);
+
+            return new WebhookDefinition(
+                id: $read->int('form_webhook_id'),
+                name: $read->string('name'),
+                url: $read->string('url'),
+                method: strtoupper($read->string('method', default: 'POST')),
+                secret: '' === $read->string('secret') ? null : $read->string('secret'),
+                headers: self::headers($read->json('headers_json')),
+                enabled: $read->bool('enabled', default: true),
+                sort: $read->int('sort'),
             );
-        }
-        return $webhooks;
+        }, $rows);
     }
 
     /**
-     * @param list<array<string, mixed>> $fieldRows
-     * @return array<int, list<FieldDefinition>>
+     * @param array<int, mixed> $params
+     *
+     * @return list<array<array-key, mixed>>
      */
-    private function groupFields(array $fieldRows): array
+    private function fetchAll(string $sql, array $params): array
     {
-        $byRow = [];
-        foreach ($fieldRows as $row) {
-            $rowId           = (int) $row['form_row_id'];
-            $byRow[$rowId] ??= [];
-            $byRow[$rowId][] = $this->buildField($row);
+        $rows = [];
+        foreach ($this->adapter->createStatement($sql)->execute($params) as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $rows[] = $row;
         }
-        return $byRow;
+
+        return $rows;
     }
 
     /**
-     * @param list<array<string, mixed>> $rowRows
-     * @param array<int, list<FieldDefinition>> $fieldsByRow
-     * @return array<int, list<RowDefinition>>
+     * Rows of $table whose $parentColumn is one of the parents' ids, in one
+     * query per level so the cost does not grow with the form's size.
+     *
+     * @param list<array<array-key, mixed>> $parents
+     *
+     * @return list<array<array-key, mixed>>
      */
-    private function groupRows(array $rowRows, array $fieldsByRow): array
+    private function fetchChildren(string $table, string $parentColumn, array $parents, string $idColumn): array
     {
-        $byGroup = [];
-        foreach ($rowRows as $row) {
-            $rowId             = (int) $row['form_row_id'];
-            $groupId           = (int) $row['form_group_id'];
-            $byGroup[$groupId] ??= [];
-            $byGroup[$groupId][] = new RowDefinition(
-                id:     $rowId,
-                sort:   (int) $row['sort'],
-                fields: $fieldsByRow[$rowId] ?? [],
-            );
+        $ids = array_map(
+            /** @param array<array-key, mixed> $row */
+            static fn(array $row): int => (new RowReader($row))->int($parentColumn),
+            $parents,
+        );
+        if ([] === $ids) {
+            return [];
         }
-        return $byGroup;
+
+        $placeholders = implode(',', array_fill(0, count($ids), value: '?'));
+
+        return $this->fetchAll(
+            "SELECT * FROM {$table} WHERE {$parentColumn} IN ({$placeholders}) ORDER BY sort ASC, {$idColumn} ASC",
+            $ids,
+        );
     }
 
     /**
-     * @param list<array<string, mixed>> $groupRows
+     * @param list<array<array-key, mixed>> $groupRows
      * @param array<int, list<RowDefinition>> $rowsByGroup
+     *
      * @return array<int, list<GroupDefinition>>
      */
     private function groupGroups(array $groupRows, array $rowsByGroup): array
     {
         $bySection = [];
         foreach ($groupRows as $row) {
-            $groupId   = (int) $row['form_group_id'];
-            $sectionId = (int) $row['form_section_id'];
-            $bySection[$sectionId] ??= [];
-            $bySection[$sectionId][] = new GroupDefinition(
-                id:          $groupId,
-                legend:      $row['legend'] !== null ? (string) $row['legend'] : null,
-                description: $row['description'] !== null ? (string) $row['description'] : null,
-                sort:        (int) $row['sort'],
-                rows:        $rowsByGroup[$groupId] ?? [],
+            $read = new RowReader($row);
+            $id   = $read->int('form_group_id');
+
+            $bySection[$read->int('form_section_id')][] = new GroupDefinition(
+                id: $id,
+                legend: $read->nullableString('legend'),
+                description: $read->nullableString('description'),
+                sort: $read->int('sort'),
+                rows: $rowsByGroup[$id] ?? [],
             );
         }
+
         return $bySection;
     }
 
     /**
-     * @param list<array<string, mixed>> $sectionRows
-     * @param array<int, list<GroupDefinition>> $groupsBySection
-     * @return list<SectionDefinition>
+     * @param list<array<array-key, mixed>> $rowRows
+     * @param array<int, list<FieldDefinition>> $fieldsByRow
+     *
+     * @return array<int, list<RowDefinition>>
      */
-    private function buildSections(array $sectionRows, array $groupsBySection): array
+    private function groupRows(array $rowRows, array $fieldsByRow): array
     {
-        $sections = [];
-        foreach ($sectionRows as $row) {
-            $sectionId  = (int) $row['form_section_id'];
-            $sections[] = new SectionDefinition(
-                id:          $sectionId,
-                key:         (string) $row['key'],
-                legend:      $row['legend'] !== null ? (string) $row['legend'] : null,
-                description: $row['description'] !== null ? (string) $row['description'] : null,
-                sort:        (int) $row['sort'],
-                groups:      $groupsBySection[$sectionId] ?? [],
+        $byGroup = [];
+        foreach ($rowRows as $row) {
+            $read = new RowReader($row);
+            $id   = $read->int('form_row_id');
+
+            $byGroup[$read->int('form_group_id')][] = new RowDefinition(
+                id: $id,
+                sort: $read->int('sort'),
+                fields: $fieldsByRow[$id] ?? [],
             );
         }
-        return $sections;
+
+        return $byGroup;
     }
 
-    /** @param array<string, mixed> $row */
-    private function buildField(array $row): FieldDefinition
+    /**
+     * @param array<array-key, mixed> $formRow
+     */
+    private function hydrate(array $formRow): FormDefinition
     {
-        $validatorsRaw = $this->decodeJson($row['validators_json'] ?? null);
-        $validators    = [];
-        foreach ($validatorsRaw as $entry) {
-            if (! is_array($entry) || ! isset($entry['type'])) {
-                continue;
-            }
-            $validators[] = ValidatorDefinition::fromArray($entry);
+        $read   = new RowReader($formRow);
+        $formId = $read->int('form_id');
+
+        $sectionRows = $this->fetchAll(
+            'SELECT * FROM form_section WHERE form_id = ? ORDER BY sort ASC, form_section_id ASC',
+            [$formId],
+        );
+        $groupRows = $this->fetchChildren('form_group', 'form_section_id', $sectionRows, 'form_group_id');
+        $rowRows   = $this->fetchChildren('form_row', 'form_group_id', $groupRows, 'form_row_id');
+        $fieldRows = $this->fetchChildren('form_field', 'form_row_id', $rowRows, 'form_field_id');
+
+        $fieldsByRow = [];
+        foreach ($fieldRows as $row) {
+            $fieldsByRow[(new RowReader($row))->int('form_row_id')][] = $this->buildField($row);
         }
 
-        $filtersRaw = $this->decodeJson($row['filters_json'] ?? null);
-        $filters    = [];
-        foreach ($filtersRaw as $value) {
-            if (is_string($value) && $value !== '') {
-                $filters[] = $value;
-            }
-        }
+        $groupsBySection = $this->groupGroups($groupRows, $this->groupRows($rowRows, $fieldsByRow));
 
-        return new FieldDefinition(
-            id:           (int) $row['form_field_id'],
-            type:         (string) $row['type'],
-            name:         (string) $row['name'],
-            label:        $row['label'] !== null ? (string) $row['label'] : null,
-            showLabel:    (bool) ($row['show_label'] ?? true),
-            description:  $row['description'] !== null ? (string) $row['description'] : null,
-            placeholder:  $row['placeholder'] !== null ? (string) $row['placeholder'] : null,
-            defaultValue: $row['default_value'] !== null ? (string) $row['default_value'] : null,
-            required:     (bool) ($row['required'] ?? false),
-            colSpan:      max(1, min(4, (int) ($row['col_span'] ?? 4))),
-            sort:         (int) ($row['sort'] ?? 0),
-            options:      $this->decodeJson($row['options_json'] ?? null),
-            validators:   $validators,
-            filters:      $filters,
-            conditional:  $this->decodeJsonOrNull($row['conditional_json'] ?? null),
+        return new FormDefinition(
+            id: $formId,
+            slug: $read->string('slug'),
+            title: $read->string('title'),
+            description: $read->nullableString('description'),
+            layoutMode: $read->string('layout_mode', default: FormDefinition::LAYOUT_SINGLE),
+            submitLabel: $read->string('submit_label', default: 'Submit'),
+            submitAlignment: $read->string('submit_alignment', default: 'left'),
+            settings: self::stringKeys($read->json('settings_json')),
+            retentionDays: $read->nullableInt('retention_days'),
+            status: $read->string('status', default: FormDefinition::STATUS_ACTIVE),
+            sections: $this->buildSections($sectionRows, $groupsBySection),
+            notifications: $this->buildNotifications($this->fetchAll(
+                'SELECT * FROM form_notification WHERE form_id = ? ORDER BY sort ASC, form_notification_id ASC',
+                [$formId],
+            )),
+            webhooks: $this->buildWebhooks($this->fetchAll(
+                'SELECT * FROM form_webhook WHERE form_id = ? ORDER BY sort ASC, form_webhook_id ASC',
+                [$formId],
+            )),
         );
     }
 
     /**
-     * @param list<array<string, mixed>> $rows
-     * @return list<NotificationDefinition>
-     */
-    private function buildNotifications(array $rows): array
-    {
-        $notifications = [];
-        foreach ($rows as $row) {
-            $notifications[] = new NotificationDefinition(
-                id:           (int) $row['form_notification_id'],
-                name:         (string) $row['name'],
-                trigger:      (string) ($row['trigger'] ?? 'submit'),
-                toAddress:    (string) ($row['to_address'] ?? ''),
-                fromAddress:  $row['from_address'] !== null ? (string) $row['from_address'] : null,
-                replyTo:      $row['reply_to'] !== null ? (string) $row['reply_to'] : null,
-                subject:      (string) ($row['subject'] ?? ''),
-                bodyTemplate: $row['body_template'] !== null ? (string) $row['body_template'] : null,
-                conditions:   $this->decodeJsonOrNull($row['conditions_json'] ?? null),
-                enabled:      (bool) ($row['enabled'] ?? true),
-                sort:         (int) ($row['sort'] ?? 0),
-            );
-        }
-        return $notifications;
-    }
-
-    /**
      * @param array<int, mixed> $params
-     * @return array<string, mixed>|null
      */
-    private function fetchOne(string $sql, array $params): ?array
+    private function loadOne(string $sql, array $params): ?FormDefinition
     {
         $rows = $this->fetchAll($sql, $params);
-        return $rows[0] ?? null;
-    }
 
-    /**
-     * @param array<int, mixed> $params
-     * @return list<array<string, mixed>>
-     */
-    private function fetchAll(string $sql, array $params): array
-    {
-        $statement = $this->adapter->createStatement($sql);
-        $result    = $statement->execute($params);
-
-        if (! $result instanceof ResultInterface || ! $result->isQueryResult()) {
-            return [];
-        }
-
-        $out = [];
-        foreach ($result as $row) {
-            $out[] = (array) $row;
-        }
-        return $out;
-    }
-
-    /**
-     * @param list<int> $ids
-     */
-    private function placeholders(array $ids): string
-    {
-        return implode(',', array_fill(0, count($ids), '?'));
-    }
-
-    /** @return array<string, mixed> */
-    private function decodeJson(mixed $raw): array
-    {
-        if (! is_string($raw) || $raw === '') {
-            return [];
-        }
-        $decoded = json_decode($raw, true);
-        return is_array($decoded) ? $decoded : [];
-    }
-
-    /** @return array<string, mixed>|null */
-    private function decodeJsonOrNull(mixed $raw): ?array
-    {
-        if (! is_string($raw) || $raw === '') {
-            return null;
-        }
-        $decoded = json_decode($raw, true);
-        return is_array($decoded) ? $decoded : null;
+        return [] === $rows ? null : $this->hydrate($rows[0]);
     }
 }

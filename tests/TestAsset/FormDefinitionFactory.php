@@ -10,6 +10,8 @@ use Contenir\FormBuilder\Definition\GroupDefinition;
 use Contenir\FormBuilder\Definition\RowDefinition;
 use Contenir\FormBuilder\Definition\SectionDefinition;
 
+use function ucfirst;
+
 /**
  * Minimal {@see FormDefinition} builders for renderer tests.
  *
@@ -19,6 +21,30 @@ use Contenir\FormBuilder\Definition\SectionDefinition;
  */
 final class FormDefinitionFactory
 {
+    /**
+     * @param array<string, mixed> $overrides
+     */
+    public static function field(string $type, string $name, array $overrides = []): FieldDefinition
+    {
+        return new FieldDefinition(
+            id: null,
+            type: $type,
+            name: $name,
+            label: $overrides['label'] ?? ucfirst($name),
+            showLabel: $overrides['showLabel'] ?? true,
+            description: $overrides['description'] ?? null,
+            placeholder: $overrides['placeholder'] ?? null,
+            defaultValue: $overrides['defaultValue'] ?? null,
+            required: $overrides['required'] ?? false,
+            colSpan: $overrides['colSpan'] ?? 4,
+            sort: $overrides['sort'] ?? 0,
+            options: $overrides['options'] ?? [],
+            validators: $overrides['validators'] ?? [],
+            filters: $overrides['filters'] ?? [],
+            conditional: $overrides['conditional'] ?? null,
+        );
+    }
+
     /**
      * Build a single-section, single-group, single-row form around a list
      * of fields. Suitable for most renderer tests; bypasses sections that
@@ -55,8 +81,8 @@ final class FormDefinitionFactory
     ): FormDefinition {
         $built = [];
         foreach ($sections as $index => $spec) {
-            $row   = new RowDefinition(null, 0, $spec['fields']);
-            $group = new GroupDefinition(null, null, null, 0, [$row]);
+            $row     = new RowDefinition(null, 0, $spec['fields']);
+            $group   = new GroupDefinition(null, null, null, 0, [$row]);
             $built[] = new SectionDefinition(
                 null,
                 $spec['key'],
@@ -73,30 +99,6 @@ final class FormDefinitionFactory
             title: 'Stepped',
             layoutMode: $layoutMode,
             sections: $built,
-        );
-    }
-
-    /**
-     * @param array<string, mixed> $overrides
-     */
-    public static function field(string $type, string $name, array $overrides = []): FieldDefinition
-    {
-        return new FieldDefinition(
-            id: null,
-            type: $type,
-            name: $name,
-            label: $overrides['label'] ?? ucfirst($name),
-            showLabel: $overrides['showLabel'] ?? true,
-            description: $overrides['description'] ?? null,
-            placeholder: $overrides['placeholder'] ?? null,
-            defaultValue: $overrides['defaultValue'] ?? null,
-            required: $overrides['required'] ?? false,
-            colSpan: $overrides['colSpan'] ?? 4,
-            sort: $overrides['sort'] ?? 0,
-            options: $overrides['options'] ?? [],
-            validators: $overrides['validators'] ?? [],
-            filters: $overrides['filters'] ?? [],
-            conditional: $overrides['conditional'] ?? null,
         );
     }
 }
