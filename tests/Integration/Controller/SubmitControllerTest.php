@@ -2,18 +2,20 @@
 
 declare(strict_types=1);
 
-namespace Contenir\FormBuilder\Laminas\Mvc\Tests\Unit\Controller;
+namespace Contenir\FormBuilder\Laminas\Mvc\Tests\Integration\Controller;
 
 use Contenir\FormBuilder\Definition\FormDefinition;
+use Contenir\FormBuilder\FieldType\FieldTypeRegistry;
 use Contenir\FormBuilder\Laminas\Mvc\Controller\SubmitController;
-use Contenir\FormBuilder\Laminas\Mvc\Loader\LaminasDbFormLoader;
 use Contenir\FormBuilder\Laminas\Mvc\State\FormStateStash;
+use Contenir\FormBuilder\Laminas\Mvc\Tests\TestAsset\FormDefinitionFactory;
+use Contenir\FormBuilder\Laminas\Mvc\Tests\TestAsset\Loader\InMemoryFormLoader;
 use Contenir\FormBuilder\Laminas\Mvc\Tests\TestAsset\Observer\RecordingObserver;
 use Contenir\FormBuilder\Laminas\Mvc\Tests\Trait\InMemorySessionTrait;
+use Contenir\FormBuilder\Service\FormBuilderService;
 use Contenir\FormBuilder\Service\FormSubmissionService;
-use Contenir\FormBuilder\Service\SubmissionResult;
 use Contenir\FormBuilder\Service\TokenReplacer;
-use Laminas\Form\Form;
+use Contenir\FormBuilder\Validator\ValidatorFactory;
 use Laminas\Http\PhpEnvironment\Request;
 use Laminas\Http\Request as HttpRequest;
 use Laminas\Http\Response;
@@ -30,16 +32,21 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
+use function array_keys;
+
 /**
- * Dispatches the controller with a stubbed loader and submission service.
+ * Dispatches the controller over the real formbuilder submission pipeline,
+ * with an in-memory session (CSRF, stash) and loader.
  */
-#[Group('unit')]
+#[Group('integration')]
 #[Group('handler')]
 final class SubmitControllerTest extends TestCase
 {
     use InMemorySessionTrait;
 
     private const array ACCEPT_JSON = ['HTTP_ACCEPT' => 'application/json'];
+
+    private FormBuilderService $builder;
 
     private FormStateStash $stash;
 
@@ -79,7 +86,7 @@ final class SubmitControllerTest extends TestCase
     }
 
     /**
-     * @return array<string, array{string, string, string}>
+     * @return array<string, array{string, mixed, string}>
      */
     public static function referrerProvider(): array
     {
@@ -95,64 +102,39 @@ final class SubmitControllerTest extends TestCase
                 'https://site.example/p?a=1&submit=contact',
             ],
             'unsafe anchor dropped'    => ['/p', '1bad/../x', '/p?submit=contact'],
+            'array anchor dropped'     => ['/p', ['x'], '/p?submit=contact'],
             'no referrer'              => ['', '', '/?submit=contact'],
         ];
     }
 
     #[Test]
-    public function attachesTheGivenObserversToTheService(): void
-    {
-        $observer = new RecordingObserver();
-        $service  = $this->createMock(FormSubmissionService::class);
-        $service->expects($this->once())->method('attach')->with($observer);
-
-        new SubmitController(
-            $this->loaderReturning($this->form()),
-            $service,
-            $this->stash,
-            new TokenReplacer(),
-            [$observer],
-        );
-    }
-
-    #[Test]
     public function invalidJsonSubmissionAnswers422WithErrors(): void
     {
-        $service = $this->serviceReturning($this->submission(
-            valid: false,
-            errors: ['name' => ['isEmpty' => 'Required']],
+        [$result, $response] = $this->dispatch($this->controller(), $this->request(
+            post: ['name' => ''],
+            server: self::ACCEPT_JSON,
         ));
 
-        [$result, $response] = $this->dispatch(
-            $this->controller(service: $service),
-            $this->request(server: self::ACCEPT_JSON),
-        );
-
-        static::assertSame(
-            [422, ['ok' => false, 'errors' => ['name' => ['isEmpty' => 'Required']]]],
-            [$response->getStatusCode(), $this->json($result)],
-        );
+        static::assertSame(422, $response->getStatusCode());
+        static::assertSame([false, ['name']], [$this->json($result)['ok'], array_keys($this->json($result)['errors'])]);
     }
 
     #[Test]
     public function invalidSubmissionStashesValuesAndRedirectsBack(): void
     {
-        $service = $this->serviceReturning($this->submission(
-            valid: false,
-            errors: ['name' => ['isEmpty' => 'Required']],
-        ));
         $request = $this->request(
             post: ['name' => '', '_anchor' => 'contact-form'],
             server: ['HTTP_REFERER' => '/contact?submit=old#x'],
         );
 
-        [$result] = $this->dispatch($this->controller(service: $service), $request);
+        [$result] = $this->dispatch($this->controller(), $request);
 
         static::assertSame('/contact#contact-form', $this->location($result));
-        static::assertSame(
-            ['values' => ['name' => ''], 'errors' => ['name' => ['isEmpty' => 'Required']]],
-            $this->stash->consume('contact'),
-        );
+        $stashed = $this->stash->consume('contact');
+        static::assertNotNull($stashed);
+        static::assertSame('', $stashed['values']['name']);
+        static::assertArrayNotHasKey('_anchor', $stashed['values']);
+        static::assertArrayHasKey('isEmpty', $stashed['errors']['name']);
     }
 
     /**
@@ -163,13 +145,7 @@ final class SubmitControllerTest extends TestCase
     #[DataProvider('jsonSuccessProvider')]
     public function jsonSuccessDescribesTheConfiguredMode(array $settings, array $expected): void
     {
-        $controller = $this->controller(
-            loader: $this->loaderReturning($this->form($settings)),
-            service: $this->serviceReturning($this->submission(
-                valid: true,
-                entryId: 42,
-            )),
-        );
+        $controller = $this->controller($this->form($settings), [new RecordingObserver(['entry_id' => 42])]);
 
         [$result, $response] = $this->dispatch($controller, $this->request(server: self::ACCEPT_JSON));
 
@@ -177,49 +153,35 @@ final class SubmitControllerTest extends TestCase
     }
 
     #[Test]
-    public function passesPostFilesAndRequestContextToTheService(): void
+    public function passesTheRequestContextToObservers(): void
     {
-        $service = $this->createMock(FormSubmissionService::class);
-        $service->expects($this->once())
-            ->method('submit')
-            ->with(
-                $this->isInstanceOf(FormDefinition::class),
-                ['name' => 'Ann', '_anchor' => ['x']],
-                ['cv' => ['name' => 'cv.pdf']],
-                [
-                    'ip'      => '10.0.0.1',
-                    'user_id' => null,
-                    'meta'    => ['user_agent' => 'UA/1', 'referer' => '/contact'],
-                ],
-            )
-            ->willReturn($this->submission(valid: true));
-        $request = $this->request(
-            post: ['name' => 'Ann', '_anchor' => ['x']],
-            server: [
-                'REMOTE_ADDR'     => '10.0.0.1',
-                'HTTP_USER_AGENT' => 'UA/1',
-                'HTTP_REFERER'    => '/contact',
-            ],
+        $observer = new RecordingObserver();
+        $request  = $this->request(server: [
+            'REMOTE_ADDR'     => '10.0.0.1',
+            'HTTP_USER_AGENT' => 'UA/1',
+            'HTTP_REFERER'    => '/contact',
+        ]);
+
+        $this->dispatch($this->controller(observers: [$observer]), $request);
+
+        static::assertSame(
+            ['ip' => '10.0.0.1', 'user_id' => null, 'meta' => ['user_agent' => 'UA/1', 'referer' => '/contact']],
+            $observer->registries[0]['context'],
         );
-        $request->setFiles(new Parameters(['cv' => ['name' => 'cv.pdf']]));
-
-        [$result] = $this->dispatch($this->controller(service: $service), $request);
-
-        static::assertInstanceOf(Response::class, $result);
     }
 
     #[Test]
     public function plainHttpRequestsAndNonScalarServerValuesUseDefaults(): void
     {
-        $request = new HttpRequest();
-        $request->setMethod('POST');
+        $plain = new HttpRequest();
+        $plain->setMethod('POST');
+        $plain->setPost(new Parameters(['name' => 'Ann Lee', '_csrf' => $this->csrf()]));
 
-        [$result] = $this->dispatch($this->controller(), $request);
-        $odd = $this->request(server: ['HTTP_REFERER' => ['x']]);
-        [$second] = $this->dispatch($this->controller(), $odd);
+        [$first] = $this->dispatch($this->controller(), $plain);
+        [$second] = $this->dispatch($this->controller(), $this->request(server: ['HTTP_REFERER' => ['x']]));
 
         static::assertSame(['/?submit=contact', '/?submit=contact'], [
-            $this->location($result),
+            $this->location($first),
             $this->location($second),
         ]);
     }
@@ -229,13 +191,7 @@ final class SubmitControllerTest extends TestCase
     {
         $form = $this->form(['success' => ['mode' => 'redirect_url', 'redirect_url' => '/thanks?n={field:name}']]);
 
-        [$result] = $this->dispatch(
-            $this->controller(
-                loader: $this->loaderReturning($form),
-                service: $this->serviceReturning($this->submission(valid: true)),
-            ),
-            $this->request(),
-        );
+        [$result] = $this->dispatch($this->controller($form), $this->request());
 
         static::assertSame('/thanks?n=Ann%20Lee', $this->location($result));
     }
@@ -251,10 +207,7 @@ final class SubmitControllerTest extends TestCase
     #[Test]
     public function rejectsAnUnknownForm(): void
     {
-        $loader = $this->createStub(LaminasDbFormLoader::class);
-        $loader->method('loadBySlug')->willReturn(null);
-
-        [$result, $response] = $this->dispatch($this->controller(loader: $loader), $this->request());
+        [$result, $response] = $this->dispatch($this->controller(), $this->request(), slug: 'missing');
 
         static::assertSame([404, ['error' => 'Form not found']], [$response->getStatusCode(), $this->json($result)]);
     }
@@ -275,7 +228,10 @@ final class SubmitControllerTest extends TestCase
     #[Test]
     public function rejectsRequestsThatAreNotPosts(): void
     {
-        [$result, $response] = $this->dispatch($this->controller(), $this->request(method: 'GET'));
+        $request = $this->request();
+        $request->setMethod('GET');
+
+        [$result, $response] = $this->dispatch($this->controller(), $request);
 
         static::assertSame([405, ['error' => 'Method not allowed']], [
             $response->getStatusCode(),
@@ -286,15 +242,12 @@ final class SubmitControllerTest extends TestCase
     #[Test]
     public function spamIsAnsweredLikeASuccess(): void
     {
-        $service = $this->serviceReturning($this->submission(
-            valid: false,
-            spam: true,
-        ));
-
-        [$result] = $this->dispatch(
-            $this->controller(service: $service),
-            $this->request(server: ['HTTP_REFERER' => '/c']),
+        $request = $this->request(
+            post: ['name' => '', 'hid' => 'bot'],
+            server: ['HTTP_REFERER' => '/c'],
         );
+
+        [$result] = $this->dispatch($this->controller(), $request);
 
         static::assertSame('/c?submit=contact', $this->location($result));
     }
@@ -303,7 +256,7 @@ final class SubmitControllerTest extends TestCase
     #[DataProvider('referrerProvider')]
     public function successfulSubmissionRedirectsBackWithTheSubmitFlag(
         string $referer,
-        string $anchor,
+        mixed $anchor,
         string $expected,
     ): void {
         $request = $this->request(
@@ -311,10 +264,7 @@ final class SubmitControllerTest extends TestCase
             server: '' === $referer ? [] : ['HTTP_REFERER' => $referer],
         );
 
-        [$result] = $this->dispatch(
-            $this->controller(service: $this->serviceReturning($this->submission(valid: true))),
-            $request,
-        );
+        [$result] = $this->dispatch($this->controller(), $request);
 
         static::assertSame($expected, $this->location($result));
     }
@@ -323,7 +273,8 @@ final class SubmitControllerTest extends TestCase
     protected function setUp(): void
     {
         $this->setUpInMemorySession();
-        $this->stash = new FormStateStash(new Container('SubmitControllerTest'));
+        $this->builder = new FormBuilderService(new FieldTypeRegistry(), new ValidatorFactory());
+        $this->stash   = new FormStateStash(new Container('SubmitControllerTest'));
     }
 
     #[Override]
@@ -332,26 +283,30 @@ final class SubmitControllerTest extends TestCase
         $this->tearDownInMemorySession();
     }
 
-    private function controller(
-        ?LaminasDbFormLoader $loader = null,
-        ?FormSubmissionService $service = null,
-    ): SubmitController {
+    /**
+     * @param list<RecordingObserver> $observers
+     */
+    private function controller(?FormDefinition $form = null, array $observers = []): SubmitController
+    {
         return new SubmitController(
-            $loader ?? $this->loaderReturning($this->form()),
-            $service ?? $this->serviceReturning($this->submission(valid: true)),
+            new InMemoryFormLoader($form ?? $this->form()),
+            new FormSubmissionService($this->builder),
             $this->stash,
             new TokenReplacer(),
+            $observers,
         );
+    }
+
+    private function csrf(): string
+    {
+        return (string) $this->builder->build($this->form())->get('_csrf')->getValue();
     }
 
     /**
      * @return array{mixed, Response}
      */
-    private function dispatch(
-        SubmitController $controller,
-        HttpRequest $request,
-        ?string $slug = 'contact',
-    ): array {
+    private function dispatch(SubmitController $controller, HttpRequest $request, ?string $slug = 'contact'): array
+    {
         $event = new MvcEvent();
         $event->setRouteMatch(
             new RouteMatch(null === $slug ? ['action' => 'submit'] : ['action' => 'submit', 'slug' => $slug]),
@@ -367,27 +322,27 @@ final class SubmitControllerTest extends TestCase
      */
     private function form(array $settings = []): FormDefinition
     {
+        $definition = FormDefinitionFactory::withFields([FormDefinitionFactory::field('text', 'name', [
+            'required' => true,
+        ])]);
+
         return new FormDefinition(
             id: 1,
             slug: 'contact',
             title: 'Contact',
             settings: $settings,
+            sections: $definition->sections,
         );
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function json(mixed $result): array
     {
         static::assertInstanceOf(JsonModel::class, $result);
 
         return $result->getVariables();
-    }
-
-    private function loaderReturning(FormDefinition $form): LaminasDbFormLoader
-    {
-        $loader = $this->createStub(LaminasDbFormLoader::class);
-        $loader->method('loadBySlug')->willReturn($form);
-
-        return $loader;
     }
 
     private function location(mixed $result): string
@@ -402,40 +357,13 @@ final class SubmitControllerTest extends TestCase
      * @param array<string, mixed> $post
      * @param array<string, mixed> $server
      */
-    private function request(string $method = 'POST', array $post = [], array $server = []): Request
+    private function request(array $post = ['name' => 'Ann Lee'], array $server = []): Request
     {
         $request = new Request();
-        $request->setMethod($method);
-        $request->setPost(new Parameters($post));
+        $request->setMethod('POST');
+        $request->setPost(new Parameters([...['name' => 'Ann Lee'], ...$post, '_csrf' => $this->csrf()]));
         $request->setServer(new Parameters($server));
 
         return $request;
-    }
-
-    private function serviceReturning(SubmissionResult $result): FormSubmissionService
-    {
-        $service = $this->createStub(FormSubmissionService::class);
-        $service->method('submit')->willReturn($result);
-
-        return $service;
-    }
-
-    /**
-     * @param array<string, mixed> $errors
-     */
-    private function submission(
-        bool $valid,
-        array $errors = [],
-        bool $spam = false,
-        ?int $entryId = null,
-    ): SubmissionResult {
-        return new SubmissionResult(
-            valid: $valid,
-            form: new Form(),
-            values: ['name' => 'Ann Lee'],
-            errors: $errors,
-            isSpam: $spam,
-            entryId: $entryId,
-        );
     }
 }

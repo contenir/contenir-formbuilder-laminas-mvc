@@ -6,6 +6,7 @@ namespace Contenir\FormBuilder\Laminas\Mvc\Repository;
 
 use DateTimeImmutable;
 use Laminas\Db\Adapter\Adapter;
+use Override;
 use Throwable;
 
 use function is_array;
@@ -26,7 +27,7 @@ use const JSON_UNESCAPED_UNICODE;
  *
  * @api
  */
-class LaminasDbEntryRepository
+final class LaminasDbEntryRepository implements EntryRepositoryInterface
 {
     public const string STATUS_PENDING  = 'pending';
     public const string STATUS_COMPLETE = 'complete';
@@ -48,9 +49,10 @@ class LaminasDbEntryRepository
      *
      * @throws Throwable Any database error, after the transaction is rolled back.
      *
-     * @mago-expect lint:excessive-parameter-list Public 0.x signature, kept for 2.0.
+     * @mago-expect lint:excessive-parameter-list Implements EntryRepositoryInterface::record(), the 0.x signature.
      * @mago-expect analysis:mixed-assignment Submitted values are untyped; each is stored by its type.
      */
+    #[Override]
     public function record(
         int $formId,
         array $values,

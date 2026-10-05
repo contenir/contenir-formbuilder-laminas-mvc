@@ -30,7 +30,7 @@ use LogicException;
  *
  * @mago-expect analysis:deprecated-class laminas-view 2.x helpers still need getView() here; constructor injection is a proposed follow-up.
  */
-class FormMarkup extends AbstractHelper
+final class FormMarkup extends AbstractHelper
 {
     public function __construct(
         private RenderFormMarkup $renderer = new RenderFormMarkup(),

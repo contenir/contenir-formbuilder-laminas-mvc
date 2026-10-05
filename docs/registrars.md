@@ -14,6 +14,10 @@ told the submission succeeded.
 
 ## LaminasDbEntryRepository
 
+Implements `EntryRepositoryInterface::record()`, which `StoreSubmissionRegistrar`
+depends on; register another implementation as `EntryRepositoryInterface::class`
+to store entries elsewhere.
+
 ```php
 $id = $repository->record(
     formId: 5,

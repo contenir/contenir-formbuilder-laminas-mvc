@@ -14,9 +14,11 @@ use Contenir\FormBuilder\Laminas\Mvc\Factory\LaminasDbFormLoaderFactory;
 use Contenir\FormBuilder\Laminas\Mvc\Factory\StoreSubmissionRegistrarFactory;
 use Contenir\FormBuilder\Laminas\Mvc\Factory\SubmitControllerFactory;
 use Contenir\FormBuilder\Laminas\Mvc\Factory\WebhookRegistrarFactory;
+use Contenir\FormBuilder\Laminas\Mvc\Loader\FormLoaderInterface;
 use Contenir\FormBuilder\Laminas\Mvc\Loader\LaminasDbFormLoader;
 use Contenir\FormBuilder\Laminas\Mvc\Registrar\EmailNotificationRegistrar;
 use Contenir\FormBuilder\Laminas\Mvc\Registrar\StoreSubmissionRegistrar;
+use Contenir\FormBuilder\Laminas\Mvc\Repository\EntryRepositoryInterface;
 use Contenir\FormBuilder\Laminas\Mvc\Repository\LaminasDbEntryRepository;
 use Contenir\FormBuilder\Laminas\Mvc\State\FormStateStash;
 use Contenir\FormBuilder\Laminas\Mvc\Tests\TestAsset\Container\InMemoryContainer;
@@ -104,12 +106,12 @@ final class FactoriesTest extends TestCase
         $tokens     = new TokenReplacer();
         $transport  = new InMemory();
         $logger     = $this->createStub(LoggerInterface::class);
-        $repository = $this->createStub(LaminasDbEntryRepository::class);
+        $repository = new LaminasDbEntryRepository($this->createStub(Adapter::class));
         $container  = new InMemoryContainer([
             TokenReplacer::class            => $tokens,
             TransportInterface::class       => $transport,
             LoggerInterface::class          => $logger,
-            LaminasDbEntryRepository::class => $repository,
+            EntryRepositoryInterface::class => $repository,
         ]);
 
         $email   = (new EmailNotificationRegistrarFactory())($container);
@@ -195,11 +197,11 @@ final class FactoriesTest extends TestCase
     private function controllerContainer(array $extra): InMemoryContainer
     {
         return new InMemoryContainer([
-            LaminasDbFormLoader::class      => $this->createStub(LaminasDbFormLoader::class),
+            FormLoaderInterface::class      => new LaminasDbFormLoader($this->createStub(Adapter::class)),
             FormStateStash::class           => new FormStateStash(new Container('test')),
             TokenReplacer::class            => new TokenReplacer(),
             StoreSubmissionRegistrar::class => new StoreSubmissionRegistrar($this->createStub(
-                LaminasDbEntryRepository::class,
+                EntryRepositoryInterface::class,
             )),
             WebhookRegistrar::class         => new WebhookRegistrar(),
             ...$extra,

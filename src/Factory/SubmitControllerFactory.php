@@ -7,7 +7,7 @@ namespace Contenir\FormBuilder\Laminas\Mvc\Factory;
 use Contenir\FormBuilder\FieldType\FieldTypeRegistry;
 use Contenir\FormBuilder\Laminas\Mvc\Container\Services;
 use Contenir\FormBuilder\Laminas\Mvc\Controller\SubmitController;
-use Contenir\FormBuilder\Laminas\Mvc\Loader\LaminasDbFormLoader;
+use Contenir\FormBuilder\Laminas\Mvc\Loader\FormLoaderInterface;
 use Contenir\FormBuilder\Laminas\Mvc\Registrar\EmailNotificationRegistrar;
 use Contenir\FormBuilder\Laminas\Mvc\Registrar\StoreSubmissionRegistrar;
 use Contenir\FormBuilder\Laminas\Mvc\State\FormStateStash;
@@ -83,7 +83,7 @@ final class SubmitControllerFactory
         );
 
         return new SubmitController(
-            Services::get($container, LaminasDbFormLoader::class, LaminasDbFormLoader::class),
+            Services::get($container, FormLoaderInterface::class, FormLoaderInterface::class),
             $service,
             Services::get($container, FormStateStash::class, FormStateStash::class),
             Services::get($container, TokenReplacer::class, TokenReplacer::class),

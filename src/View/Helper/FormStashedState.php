@@ -22,7 +22,7 @@ use Laminas\View\Helper\AbstractHelper;
  *
  * @mago-expect analysis:deprecated-class Kept on AbstractHelper for 2.0 so existing helper configuration keeps working; see the proposed follow-up.
  */
-class FormStashedState extends AbstractHelper
+final class FormStashedState extends AbstractHelper
 {
     public function __construct(
         private FormStateStash $stash,

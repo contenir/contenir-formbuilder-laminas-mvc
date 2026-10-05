@@ -13,6 +13,7 @@ use Contenir\FormBuilder\Definition\SectionDefinition;
 use Contenir\FormBuilder\Definition\ValidatorDefinition;
 use Contenir\FormBuilder\Definition\WebhookDefinition;
 use Laminas\Db\Adapter\Adapter;
+use Override;
 
 use function array_fill;
 use function array_map;
@@ -40,7 +41,7 @@ use function strtoupper;
  * @mago-expect lint:kan-defect Kept whole for 2.0 (one builder per table); splitting it is a proposed follow-up.
  * @mago-expect lint:too-many-methods Kept whole for 2.0 (one builder per table); splitting it is a proposed follow-up.
  */
-class LaminasDbFormLoader
+final class LaminasDbFormLoader implements FormLoaderInterface
 {
     public function __construct(
         private Adapter $adapter,
@@ -148,6 +149,7 @@ class LaminasDbFormLoader
      *
      * @return list<array{id: int, slug: string, title: string, status: string}>
      */
+    #[Override]
     public function listSummaries(): array
     {
         return array_map(
@@ -168,16 +170,19 @@ class LaminasDbFormLoader
     /**
      * @return list<FormDefinition>
      */
+    #[Override]
     public function loadAll(): array
     {
         return array_map($this->hydrate(...), $this->fetchAll('SELECT * FROM form ORDER BY title ASC', []));
     }
 
+    #[Override]
     public function loadById(int $formId): ?FormDefinition
     {
         return $this->loadOne('SELECT * FROM form WHERE form_id = ?', [$formId]);
     }
 
+    #[Override]
     public function loadBySlug(string $slug): ?FormDefinition
     {
         return $this->loadOne('SELECT * FROM form WHERE slug = ?', [$slug]);

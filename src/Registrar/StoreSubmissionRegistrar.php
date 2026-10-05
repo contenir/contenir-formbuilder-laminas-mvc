@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Contenir\FormBuilder\Laminas\Mvc\Registrar;
 
 use Contenir\FormBuilder\Definition\FormDefinition;
+use Contenir\FormBuilder\Laminas\Mvc\Repository\EntryRepositoryInterface;
 use Contenir\FormBuilder\Laminas\Mvc\Repository\LaminasDbEntryRepository;
 use Contenir\FormBuilder\Service\BuilderForm;
 use Override;
@@ -32,10 +33,10 @@ use function is_scalar;
  *
  * @mago-expect lint:cyclomatic-complexity The count comes from type guards on the untyped registry, not from branching logic.
  */
-class StoreSubmissionRegistrar implements SplObserver
+final class StoreSubmissionRegistrar implements SplObserver
 {
     public function __construct(
-        private LaminasDbEntryRepository $repository,
+        private EntryRepositoryInterface $repository,
     ) {}
 
     /**

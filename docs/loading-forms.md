@@ -1,6 +1,8 @@
 # Loading forms
 
-`LaminasDbFormLoader` hydrates `Contenir\FormBuilder\Definition\FormDefinition`
+`LaminasDbFormLoader` implements `FormLoaderInterface` (the four methods
+below); register another implementation as `FormLoaderInterface::class` to load
+definitions from elsewhere. It hydrates `Contenir\FormBuilder\Definition\FormDefinition`
 aggregates from the forms schema with one query per level (form, sections,
 groups, rows, fields, notifications, webhooks), so the cost does not grow with
 the form's size.

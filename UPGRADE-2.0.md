@@ -17,9 +17,41 @@ composer require contenir/formbuilder-laminas-mvc:^2.0
 Projects that must stay on PHP 8.1 or 8.2 can keep using `^0.1`, maintained on
 the `0.x` branch.
 
-## Final wiring classes
+## Final classes and extension points
 
-`Module` and all factories in `Factory\` are now `final`.
+Every concrete class is now `final`: `Module`, the factories, the controller,
+loader, repository, stash, registrars, renderer and view helpers. Customise
+through interfaces instead:
+
+| To customise | 0.x | 2.0 |
+| --- | --- | --- |
+| Where definitions come from | extend `LaminasDbFormLoader` | implement `Loader\FormLoaderInterface` and register it as `FormLoaderInterface::class` |
+| Where entries are stored | extend `LaminasDbEntryRepository` | implement `Repository\EntryRepositoryInterface` and register it as `EntryRepositoryInterface::class` |
+| A registrar | extend `StoreSubmissionRegistrar` / `EmailNotificationRegistrar` | implement `SplObserver` and add it to `formbuilder.observers` |
+| A factory | extend it | register your own factory for the service |
+
+`ConfigProvider` aliases the interfaces to the Laminas\Db implementations, and
+the submit pipeline asks for the interfaces, so a replacement registered under
+the interface name is picked up everywhere:
+
+```php
+// 0.x
+final class ApiFormLoader extends LaminasDbFormLoader { /* … */ }
+
+// 2.0
+final class ApiFormLoader implements FormLoaderInterface { /* … */ }
+
+return ['service_manager' => [
+    'aliases'   => [FormLoaderInterface::class => ApiFormLoader::class],
+    'factories' => [ApiFormLoader::class => ApiFormLoaderFactory::class],
+]];
+```
+
+`SubmitController`'s first constructor parameter is typed `FormLoaderInterface`
+and `StoreSubmissionRegistrar`'s is `EntryRepositoryInterface` (both were the
+concrete classes); existing callers are unaffected.
+
+For factories:
 
 ```php
 // 0.x

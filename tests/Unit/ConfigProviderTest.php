@@ -45,5 +45,6 @@ final class ConfigProviderTest extends TestCase
         static::assertSame(['formMarkup'], array_keys($config['view_helpers']['invokables']));
         static::assertSame(['formStashedState'], array_keys($config['view_helpers']['factories']));
         static::assertCount(7, $config['service_manager']['factories']);
+        static::assertCount(2, $config['service_manager']['aliases']);
     }
 }

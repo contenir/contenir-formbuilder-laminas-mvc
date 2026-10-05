@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Contenir\FormBuilder\Laminas\Mvc\Controller;
 
 use Contenir\FormBuilder\Definition\FormDefinition;
-use Contenir\FormBuilder\Laminas\Mvc\Loader\LaminasDbFormLoader;
+use Contenir\FormBuilder\Laminas\Mvc\Loader\FormLoaderInterface;
 use Contenir\FormBuilder\Laminas\Mvc\State\FormStateStash;
 use Contenir\FormBuilder\Service\FormSubmissionService;
 use Contenir\FormBuilder\Service\SubmissionResult;
@@ -70,13 +70,13 @@ use function substr;
  *
  * @mago-expect lint:cyclomatic-complexity Kept whole for 2.0 (one action with its response modes); splitting it is a proposed follow-up.
  */
-class SubmitController extends AbstractActionController
+final class SubmitController extends AbstractActionController
 {
     /**
      * @param list<SplObserver> $observers Attached to the submission service, in order.
      */
     public function __construct(
-        private LaminasDbFormLoader $loader,
+        private FormLoaderInterface $loader,
         private FormSubmissionService $service,
         private FormStateStash $stash,
         private TokenReplacer $tokens,

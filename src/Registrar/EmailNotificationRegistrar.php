@@ -54,7 +54,7 @@ use const FILTER_VALIDATE_EMAIL;
  *
  * @mago-expect lint:cyclomatic-complexity Kept whole for 2.0 (message assembly, addressing and HTML-to-text in one registrar); splitting it is a proposed follow-up.
  */
-class EmailNotificationRegistrar implements SplObserver
+final class EmailNotificationRegistrar implements SplObserver
 {
     public function __construct(
         private TokenReplacer $tokens,

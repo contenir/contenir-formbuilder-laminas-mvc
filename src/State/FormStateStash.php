@@ -27,7 +27,7 @@ use function strtolower;
  *
  * @api
  */
-class FormStateStash
+final class FormStateStash
 {
     private const string SESSION_NAMESPACE = 'ContenirFormBuilderFlash';
 

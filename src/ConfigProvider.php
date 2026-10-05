@@ -14,9 +14,11 @@ use Contenir\FormBuilder\Laminas\Mvc\Factory\StoreSubmissionRegistrarFactory;
 use Contenir\FormBuilder\Laminas\Mvc\Factory\SubmitControllerFactory;
 use Contenir\FormBuilder\Laminas\Mvc\Factory\TokenReplacerFactory;
 use Contenir\FormBuilder\Laminas\Mvc\Factory\WebhookRegistrarFactory;
+use Contenir\FormBuilder\Laminas\Mvc\Loader\FormLoaderInterface;
 use Contenir\FormBuilder\Laminas\Mvc\Loader\LaminasDbFormLoader;
 use Contenir\FormBuilder\Laminas\Mvc\Registrar\EmailNotificationRegistrar;
 use Contenir\FormBuilder\Laminas\Mvc\Registrar\StoreSubmissionRegistrar;
+use Contenir\FormBuilder\Laminas\Mvc\Repository\EntryRepositoryInterface;
 use Contenir\FormBuilder\Laminas\Mvc\Repository\LaminasDbEntryRepository;
 use Contenir\FormBuilder\Laminas\Mvc\State\FormStateStash;
 use Contenir\FormBuilder\Laminas\Mvc\View\Helper\FormMarkup;
@@ -77,6 +79,10 @@ final class ConfigProvider
     public function getDependencies(): array
     {
         return [
+            'aliases'   => [
+                FormLoaderInterface::class      => LaminasDbFormLoader::class,
+                EntryRepositoryInterface::class => LaminasDbEntryRepository::class,
+            ],
             'factories' => [
                 LaminasDbFormLoader::class        => LaminasDbFormLoaderFactory::class,
                 LaminasDbEntryRepository::class   => LaminasDbEntryRepositoryFactory::class,

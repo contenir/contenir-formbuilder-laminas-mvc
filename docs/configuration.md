@@ -45,5 +45,9 @@ A service registered under one of these names but of another type is ignored.
 A required service of the wrong type (for example a `db_adapter` that is not
 an `Adapter`) fails with an `UnexpectedValueException` naming the service.
 
-The factories, `Module` and `ConfigProvider` are `final`: replace a factory in
-your own configuration instead of extending it.
+Every class is `final`. `ConfigProvider` also aliases
+`Loader\FormLoaderInterface` to `LaminasDbFormLoader` and
+`Repository\EntryRepositoryInterface` to `LaminasDbEntryRepository`; the
+submit pipeline resolves the interfaces, so register your own implementation
+under the interface name to replace either. Replace a factory in your own
+configuration instead of extending it.

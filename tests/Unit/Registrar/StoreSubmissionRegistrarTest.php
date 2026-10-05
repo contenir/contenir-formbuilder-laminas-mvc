@@ -7,7 +7,7 @@ namespace Contenir\FormBuilder\Laminas\Mvc\Tests\Unit\Registrar;
 use ArrayObject;
 use Contenir\FormBuilder\Definition\FormDefinition;
 use Contenir\FormBuilder\Laminas\Mvc\Registrar\StoreSubmissionRegistrar;
-use Contenir\FormBuilder\Laminas\Mvc\Repository\LaminasDbEntryRepository;
+use Contenir\FormBuilder\Laminas\Mvc\Repository\EntryRepositoryInterface;
 use Contenir\FormBuilder\Service\BuilderForm;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
@@ -66,7 +66,7 @@ final class StoreSubmissionRegistrarTest extends TestCase
     #[Test]
     public function nonArrayContextIsIgnored(): void
     {
-        $repository = $this->createMock(LaminasDbEntryRepository::class);
+        $repository = $this->createMock(EntryRepositoryInterface::class);
         $repository->expects($this->once())->method('record')->with(5, [], 'complete', null, null, [])->willReturn(1);
 
         (new StoreSubmissionRegistrar($repository))->update(self::subject([
@@ -83,7 +83,7 @@ final class StoreSubmissionRegistrarTest extends TestCase
     #[Test]
     public function recordsSpamWithTheSpamStatusAndIgnoresUnusableContext(): void
     {
-        $repository = $this->createMock(LaminasDbEntryRepository::class);
+        $repository = $this->createMock(EntryRepositoryInterface::class);
         $repository->expects($this->once())
             ->method('record')
             ->with(5, [], 'spam', null, null, [])
@@ -107,7 +107,7 @@ final class StoreSubmissionRegistrarTest extends TestCase
     #[Test]
     public function recordsTheSubmissionAndPublishesTheEntryId(): void
     {
-        $repository = $this->createMock(LaminasDbEntryRepository::class);
+        $repository = $this->createMock(EntryRepositoryInterface::class);
         $repository->expects($this->once())
             ->method('record')
             ->with(5, ['name' => 'Ann'], 'complete', '10.0.0.1', 7, ['user_agent' => 'UA'])
@@ -132,7 +132,7 @@ final class StoreSubmissionRegistrarTest extends TestCase
     #[DataProvider('unstorableSubjectProvider')]
     public function storesNothingWithoutASavedFormAndValues(SplSubject $subject): void
     {
-        $repository = $this->createMock(LaminasDbEntryRepository::class);
+        $repository = $this->createMock(EntryRepositoryInterface::class);
         $repository->expects($this->never())->method('record');
 
         (new StoreSubmissionRegistrar($repository))->update($subject);

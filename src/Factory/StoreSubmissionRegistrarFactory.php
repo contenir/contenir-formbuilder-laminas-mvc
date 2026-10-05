@@ -6,7 +6,7 @@ namespace Contenir\FormBuilder\Laminas\Mvc\Factory;
 
 use Contenir\FormBuilder\Laminas\Mvc\Container\Services;
 use Contenir\FormBuilder\Laminas\Mvc\Registrar\StoreSubmissionRegistrar;
-use Contenir\FormBuilder\Laminas\Mvc\Repository\LaminasDbEntryRepository;
+use Contenir\FormBuilder\Laminas\Mvc\Repository\EntryRepositoryInterface;
 use Psr\Container\ContainerExceptionInterface;
 use Psr\Container\ContainerInterface;
 use UnexpectedValueException;
@@ -23,7 +23,7 @@ final class StoreSubmissionRegistrarFactory
     public function __invoke(ContainerInterface $container): StoreSubmissionRegistrar
     {
         return new StoreSubmissionRegistrar(
-            Services::get($container, LaminasDbEntryRepository::class, LaminasDbEntryRepository::class),
+            Services::get($container, EntryRepositoryInterface::class, EntryRepositoryInterface::class),
         );
     }
 }

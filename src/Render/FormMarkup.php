@@ -64,7 +64,7 @@ use const JSON_UNESCAPED_SLASHES;
  * @mago-expect lint:kan-defect Kept whole for 2.0 (one renderer per element type); splitting it is a proposed follow-up.
  * @mago-expect lint:too-many-methods Kept whole for 2.0 (one renderer per element type); splitting it is a proposed follow-up.
  */
-class FormMarkup
+final class FormMarkup
 {
     private const array CLASSES = [
         'section'             => 'formbuilder__section',
