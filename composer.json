@@ -1,11 +1,11 @@
 {
-    "name": "contenir/formbuilder-laminas-mvc",
-    "description": "Laminas MVC adapter for contenir/formbuilder — Laminas\\Db loader, view helper, submit controller, Module + ConfigProvider.",
+    "name": "contenir/contenir-formbuilder-laminas-mvc",
+    "description": "Laminas MVC adapter for contenir/contenir-formbuilder — Laminas\\Db loader, view helper, submit controller, Module + ConfigProvider.",
     "type": "library",
     "license": "MIT",
     "require": {
         "php": "~8.3.0 || ~8.4.0 || ~8.5.0",
-        "contenir/formbuilder": "^2.1",
+        "contenir/contenir-formbuilder": "^2.2",
         "laminas/laminas-db": "^2.17",
         "laminas/laminas-form": "^3.20",
         "laminas/laminas-http": "^2.19",
@@ -20,14 +20,17 @@
         "psr/log": "^1.0 || ^2.0 || ^3.0"
     },
     "require-dev": {
-        "contenir/storage": "^0.1.0 || ^2.0",
+        "contenir/contenir-storage": "^2.2",
         "infection/infection": "^0.34.1",
         "laminas/laminas-i18n": "^2.32",
         "php-db/phpdb-qa-tools": "0.1.x-dev",
         "phpunit/phpunit": "^11.5.42"
     },
+    "replace": {
+        "contenir/formbuilder-laminas-mvc": "self.version"
+    },
     "suggest": {
-        "contenir/storage": "Enables the file field type: register a Contenir\\Storage\\StorageManager service and uploads are stored on its default profile."
+        "contenir/contenir-storage": "Enables the file field type: register a Contenir\\Storage\\StorageManager service and uploads are stored on its default profile."
     },
     "autoload": {
         "psr-4": {
@@ -72,7 +75,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "2.1.x-dev"
+            "dev-main": "2.2.x-dev"
         },
         "laminas": {
             "module": "Contenir\\FormBuilder\\Laminas\\Mvc"

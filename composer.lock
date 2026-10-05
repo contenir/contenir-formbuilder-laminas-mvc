@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "5f02aa698368dbd649f7ea5c4c3f16e6",
+    "content-hash": "b33f972f3054dbf10911e3a2257b865a",
     "packages": [
         {
             "name": "brick/varexporter",
@@ -56,17 +56,17 @@
             "time": "2025-02-20T17:42:39+00:00"
         },
         {
-            "name": "contenir/formbuilder",
-            "version": "v2.1.0",
+            "name": "contenir/contenir-formbuilder",
+            "version": "v2.2.0",
             "source": {
                 "type": "git",
-                "url": "https://github.com/contenir/formbuilder.git",
-                "reference": "5c78095850f3f37dc60070e7a3d757f230cce3b9"
+                "url": "https://github.com/contenir/contenir-formbuilder.git",
+                "reference": "af35b2e0b6afe99c3cc6c4c57959a82e03d1abbd"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/contenir/formbuilder/zipball/5c78095850f3f37dc60070e7a3d757f230cce3b9",
-                "reference": "5c78095850f3f37dc60070e7a3d757f230cce3b9",
+                "url": "https://api.github.com/repos/contenir/contenir-formbuilder/zipball/af35b2e0b6afe99c3cc6c4c57959a82e03d1abbd",
+                "reference": "af35b2e0b6afe99c3cc6c4c57959a82e03d1abbd",
                 "shasum": ""
             },
             "require": {
@@ -81,18 +81,22 @@
             "conflict": {
                 "laminas/laminas-stdlib": "<3.21"
             },
+            "replace": {
+                "contenir/formbuilder": "self.version"
+            },
             "require-dev": {
-                "contenir/storage": "^0.1.0 || ^2.0",
+                "contenir/contenir-storage": "^2.2",
+                "infection/infection": "^0.34.1",
                 "php-db/phpdb-qa-tools": "0.1.x-dev",
                 "phpunit/phpunit": "^11.5.42"
             },
             "suggest": {
-                "contenir/storage": "Required for the file field type. Pass a Contenir\\Storage\\StorageManager into FormSubmissionService when uploads need to land on a configured storage profile."
+                "contenir/contenir-storage": "Required for the file field type. Pass a Contenir\\Storage\\StorageManager into FormSubmissionService when uploads need to land on a configured storage profile."
             },
             "type": "library",
             "extra": {
                 "branch-alias": {
-                    "dev-main": "2.1.x-dev"
+                    "dev-main": "2.2.x-dev"
                 }
             },
             "autoload": {
@@ -106,10 +110,10 @@
             ],
             "description": "Framework-agnostic form-builder engine for Contenir CMS — runtime-editable form definitions, builder-form construction, server-side submission validation.",
             "support": {
-                "issues": "https://github.com/contenir/formbuilder/issues",
-                "source": "https://github.com/contenir/formbuilder/tree/v2.1.0"
+                "issues": "https://github.com/contenir/contenir-formbuilder/issues",
+                "source": "https://github.com/contenir/contenir-formbuilder/tree/v2.2.0"
             },
-            "time": "2026-10-05T10:55:11+00:00"
+            "time": "2026-10-05T20:09:42+00:00"
         },
         {
             "name": "laminas/laminas-config",
@@ -2554,38 +2558,45 @@
             "time": "2024-05-06T16:37:16+00:00"
         },
         {
-            "name": "contenir/storage",
-            "version": "v0.1.0",
+            "name": "contenir/contenir-storage",
+            "version": "v2.2.0",
             "source": {
                 "type": "git",
-                "url": "https://github.com/contenir/storage.git",
-                "reference": "4289dd38f88360af9555d1a8de23f3a590734f2e"
+                "url": "https://github.com/contenir/contenir-storage.git",
+                "reference": "09c75c3184a6688bb5ca8f1f246fc057894fadfc"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/contenir/storage/zipball/4289dd38f88360af9555d1a8de23f3a590734f2e",
-                "reference": "4289dd38f88360af9555d1a8de23f3a590734f2e",
+                "url": "https://api.github.com/repos/contenir/contenir-storage/zipball/09c75c3184a6688bb5ca8f1f246fc057894fadfc",
+                "reference": "09c75c3184a6688bb5ca8f1f246fc057894fadfc",
                 "shasum": ""
             },
             "require": {
-                "league/flysystem": "^3.0",
-                "php": "^8.1 || ^8.2 || ^8.3",
-                "psr/log": "^3.0"
+                "league/flysystem": "^3.29",
+                "php": "~8.3.0 || ~8.4.0 || ~8.5.0",
+                "psr/log": "^1.1 || ^2.0 || ^3.0"
+            },
+            "replace": {
+                "contenir/storage": "self.version"
             },
             "require-dev": {
-                "cloudflare/sdk": "^1.1",
-                "gumlet/php-image-resize": "^2.0",
-                "league/flysystem-aws-s3-v3": "^3.0",
-                "league/flysystem-memory": "^3.0",
-                "phpunit/phpunit": "^11.0",
-                "squizlabs/php_codesniffer": "^3.10"
+                "infection/infection": "^0.34.1",
+                "league/flysystem-aws-s3-v3": "^3.29",
+                "league/flysystem-memory": "^3.29",
+                "league/mime-type-detection": "^1.16",
+                "php-db/phpdb-qa-tools": "0.1.x-dev",
+                "phpunit/phpunit": "^11.5.42"
             },
             "suggest": {
-                "cloudflare/sdk": "Required by the CloudflareImages adapter.",
-                "gumlet/php-image-resize": "Required by ImageResizer for local variant generation.",
-                "league/flysystem-aws-s3-v3": "Required by the S3 adapter."
+                "ext-imagick": "Preferred by ImageResizer for variant generation; the magick/convert CLI is used otherwise.",
+                "league/flysystem-aws-s3-v3": "Required by StorageConfig to build s3 and cloudflare-images backends."
             },
             "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "2.2.x-dev"
+                }
+            },
             "autoload": {
                 "psr-4": {
                     "Contenir\\Storage\\": "src/"
@@ -2597,10 +2608,10 @@
             ],
             "description": "Framework-agnostic asset storage for Contenir CMS — local, S3-compatible, and Cloudflare Images adapters with a shared variant pipeline.",
             "support": {
-                "issues": "https://github.com/contenir/storage/issues",
-                "source": "https://github.com/contenir/storage/tree/v0.1.0"
+                "issues": "https://github.com/contenir/contenir-storage/issues",
+                "source": "https://github.com/contenir/contenir-storage/tree/v2.2.0"
             },
-            "time": "2026-05-05T06:21:45+00:00"
+            "time": "2026-10-05T13:35:15+00:00"
         },
         {
             "name": "fidry/cpu-core-counter",

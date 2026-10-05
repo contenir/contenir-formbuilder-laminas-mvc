@@ -4,7 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.2.0] - Unreleased
+
+### Changed
+
+- Renamed from `contenir/formbuilder-laminas-mvc` to
+  `contenir/contenir-formbuilder-laminas-mvc`. The package declares `replace`
+  for the old name; require `contenir/contenir-formbuilder-laminas-mvc`
+  instead. See [UPGRADE-2.0.md](UPGRADE-2.0.md).
+- Requires `contenir/contenir-formbuilder` `^2.2`, the renamed
+  `contenir/formbuilder`, in place of `contenir/formbuilder` `^2.1`.
+- The optional storage integration names `contenir/contenir-storage` `^2.2`,
+  the renamed `contenir/storage`, in `suggest` and `require-dev`.
 
 ### Added
 

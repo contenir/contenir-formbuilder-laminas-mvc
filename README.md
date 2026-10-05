@@ -1,9 +1,11 @@
-# contenir/formbuilder-laminas-mvc
+# contenir/contenir-formbuilder-laminas-mvc
 
-[![Continuous Integration](https://github.com/contenir/formbuilder-laminas-mvc/actions/workflows/continuous-integration.yml/badge.svg)](https://github.com/contenir/formbuilder-laminas-mvc/actions/workflows/continuous-integration.yml)
-[![codecov](https://codecov.io/gh/contenir/formbuilder-laminas-mvc/graph/badge.svg)](https://codecov.io/gh/contenir/formbuilder-laminas-mvc)
+Formerly `contenir/formbuilder-laminas-mvc`; the old package is abandoned in favour of this one.
 
-Laminas MVC adapter for [`contenir/formbuilder`](https://github.com/contenir/formbuilder).
+[![Continuous Integration](https://github.com/contenir/contenir-formbuilder-laminas-mvc/actions/workflows/continuous-integration.yml/badge.svg)](https://github.com/contenir/contenir-formbuilder-laminas-mvc/actions/workflows/continuous-integration.yml)
+[![codecov](https://codecov.io/gh/contenir/contenir-formbuilder-laminas-mvc/graph/badge.svg)](https://codecov.io/gh/contenir/contenir-formbuilder-laminas-mvc)
+
+Laminas MVC adapter for [`contenir/contenir-formbuilder`](https://github.com/contenir/contenir-formbuilder).
 
 It wires the framework-agnostic form-builder engine into a laminas-mvc site:
 
@@ -21,15 +23,15 @@ It wires the framework-agnostic form-builder engine into a laminas-mvc site:
 ## Requirements
 
 - PHP 8.3, 8.4 or 8.5
-- `contenir/formbuilder` 2.1+ (use 2.0.x of this package for formbuilder 0.1)
+- `contenir/contenir-formbuilder` 2.2+ (use 2.0.x of this package for `contenir/formbuilder` 0.1, and 2.1.x for `contenir/formbuilder` 2.1)
 - laminas-mvc 3.8+, laminas-db 2.17+, laminas-form, laminas-view, laminas-session, laminas-mail
 - A database with the forms schema (`tests/install-forms.sqlite.sql` is the SQLite version)
-- Optional: `contenir/storage`, registered as `Contenir\Storage\StorageManager`, for file uploads
+- Optional: `contenir/contenir-storage` 2.2+, registered as `Contenir\Storage\StorageManager`, for file uploads
 
 ## Installation
 
 ```bash
-composer require contenir/formbuilder-laminas-mvc
+composer require contenir/contenir-formbuilder-laminas-mvc
 ```
 
 The module registers itself through `extra.laminas.module` and
