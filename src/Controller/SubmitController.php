@@ -10,6 +10,8 @@ use Contenir\FormBuilder\Laminas\Mvc\State\FormStateStash;
 use Contenir\FormBuilder\Service\FormSubmissionService;
 use Contenir\FormBuilder\Service\SubmissionResult;
 use Contenir\FormBuilder\Service\TokenReplacer;
+use Contenir\Storage\Exception\StorageException;
+use Laminas\Form\Exception\ExceptionInterface as FormException;
 use Laminas\Http\PhpEnvironment\Request as PhpEnvironmentRequest;
 use Laminas\Http\Request as HttpRequest;
 use Laminas\Http\Response;
@@ -90,6 +92,9 @@ class SubmitController extends AbstractActionController
      * or the request cannot be handled, and otherwise redirects.
      *
      * @return JsonModel|Response
+     *
+     * @throws FormException When Laminas rejects the built form.
+     * @throws StorageException When the storage backend cannot store an upload.
      *
      * @mago-expect analysis:mixed-assignment Route and POST parameters are untyped; each is checked before use.
      */

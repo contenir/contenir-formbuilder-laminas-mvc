@@ -9,8 +9,7 @@ use Laminas\Form\View\Helper\FormElement;
 use Laminas\ServiceManager\ServiceManager;
 use Laminas\View\HelperPluginManager;
 use Laminas\View\Renderer\PhpRenderer;
-
-use function assert;
+use LogicException;
 
 /**
  * Builds a {@see PhpRenderer} pre-wired with the laminas-form view-helper
@@ -34,7 +33,9 @@ final class ViewRendererBuilder
         $renderer->setHelperPluginManager($helperManager);
 
         $formElement = $helperManager->get('formElement');
-        assert($formElement instanceof FormElement);
+        if (! $formElement instanceof FormElement) {
+            throw new LogicException('laminas-form did not register the formElement helper.');
+        }
 
         return [$renderer, $formElement];
     }

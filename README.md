@@ -1,85 +1,84 @@
 # contenir/formbuilder-laminas-mvc
 
+[![Continuous Integration](https://github.com/contenir/formbuilder-laminas-mvc/actions/workflows/continuous-integration.yml/badge.svg)](https://github.com/contenir/formbuilder-laminas-mvc/actions/workflows/continuous-integration.yml)
+[![codecov](https://codecov.io/gh/contenir/formbuilder-laminas-mvc/graph/badge.svg)](https://codecov.io/gh/contenir/formbuilder-laminas-mvc)
+
 Laminas MVC adapter for [`contenir/formbuilder`](https://github.com/contenir/formbuilder).
 
-Wires the framework-agnostic form-builder engine into a Laminas MVC site:
-a Laminas\Db loader, an entry-write repository, the standard
-`StoreSubmissionRegistrar`, a public-submit controller, a render-only
-view helper, and a service-manager Module + ConfigProvider with
-factories for everything.
+It wires the framework-agnostic form-builder engine into a laminas-mvc site:
 
-## Install
+- **`LaminasDbFormLoader`** reads form definitions from the forms schema
+  through laminas-db, one query per level.
+- **`SubmitController`** handles `POST /forms/submit/{slug}`: validation,
+  spam trap, redirect or JSON response, and a one-shot stash so the form can
+  be re-shown with errors after a redirect.
+- **Registrars** store the entry (`StoreSubmissionRegistrar`), send email
+  notifications (`EmailNotificationRegistrar`) and fire webhooks.
+- **View helpers** render a form (`formMarkup`) and read the stash
+  (`formStashedState`).
+- **`Module`** and **`ConfigProvider`** with factories for all of it.
+
+## Requirements
+
+- PHP 8.3, 8.4 or 8.5
+- `contenir/formbuilder` 0.1.1+ or 2.x
+- laminas-mvc 3.4+, laminas-db 2.17+, laminas-form, laminas-view, laminas-session, laminas-mail
+- A database with the forms schema (`tests/install-forms.sqlite.sql` is the SQLite version)
+- Optional: `contenir/storage`, registered as `Contenir\Storage\StorageManager`, for file uploads
+
+## Installation
 
 ```bash
 composer require contenir/formbuilder-laminas-mvc
 ```
 
-The package's Module gets auto-registered via `extra.laminas.module`
-and `laminas/laminas-component-installer`. If your site doesn't run
-the component-installer, add it to `config/modules.config.php`
-manually:
+The module registers itself through `extra.laminas.module` and
+laminas-component-installer. Without the installer, add it to
+`config/modules.config.php`:
 
 ```php
 'Contenir\FormBuilder\Laminas\Mvc',
 ```
 
-## Configuration
+The 0.x releases, which support PHP 8.1, remain available from the `0.x`
+branch and `v0.*` tags; see [UPGRADE-2.0.md](UPGRADE-2.0.md).
 
-Defaults in `config/autoload/`:
+## Usage
 
-```php
-return [
-    'formbuilder' => [
-        // Service id of the Laminas\Db\Adapter\Adapter the loader
-        // and entry repository should consume. Defaults to the
-        // standard 'Laminas\Db\Adapter\Adapter' service name.
-        'db_adapter'   => \Laminas\Db\Adapter\Adapter::class,
-        // Static values for {site:*} TokenReplacer expansion.
-        'site_context' => [],
-        // Service ids of additional submission observers (extra
-        // registrars) to attach beyond the built-in
-        // StoreSubmissionRegistrar. Add email / webhook /
-        // analytics registrars here.
-        'observers'    => [],
-    ],
-];
-```
-
-## Use
-
-The package follows a **controller-driven render pattern** — the
-controller loads the definition, builds the form, branches on query
-state; the view template only renders. There is no view helper that
-does its own data-fetching.
+The controller loads the definition and builds the form; the template only
+renders.
 
 ```php
 use Contenir\FormBuilder\Laminas\Mvc\Loader\LaminasDbFormLoader;
 use Contenir\FormBuilder\Service\FormBuilderService;
 
-class FormController extends AbstractActionController
+final class ContactController extends AbstractActionController
 {
     public function __construct(
         private LaminasDbFormLoader $loader,
         private FormBuilderService $builder,
-    ) {
-    }
+    ) {}
 
     public function indexAction(): ViewModel
     {
         $definition = $this->loader->loadBySlug('contact');
         $form       = $this->builder->build($definition);
-        $isSuccess  = $this->params()->fromQuery('form') === 'ok';
 
         return new ViewModel([
             'definition' => $definition,
             'form'       => $form,
-            'isSuccess'  => $isSuccess,
+            'isSuccess'  => $this->params()->fromQuery('submit') === 'contact',
         ]);
     }
 }
 ```
 
 ```phtml
+<?php $stashed = $this->formStashedState($definition->slug); ?>
+<?php if ($stashed !== null): ?>
+    <?php $form->setData($stashed['values']); $form->setMessages($stashed['errors']); ?>
+<?php endif ?>
+
 <?php if ($isSuccess): ?>
     <div class="form-success">Thank you.</div>
 <?php else: ?>
@@ -87,14 +86,31 @@ class FormController extends AbstractActionController
 <?php endif ?>
 ```
 
-Submissions POST to `/forms/submit/{slug}` (registered by the
-ConfigProvider's `router.routes.forms-submit` entry). The
-package's `SubmitController` builds the same submission service,
-attaches the `StoreSubmissionRegistrar` plus any observers from
-`formbuilder.observers`, and branches on the form's stored
-post-submission action (redirect_referrer / redirect_url /
-inline_message — see contenir/formbuilder docs).
+The rendered form posts to `/forms/submit/{slug}`. See [docs/](docs/):
+
+| Page | Covers |
+| --- | --- |
+| [Configuration](docs/configuration.md) | The `formbuilder` config keys and registered services |
+| [Loading forms](docs/loading-forms.md) | `LaminasDbFormLoader`, the schema |
+| [Submitting](docs/submitting.md) | `SubmitController`, success modes, JSON responses, `FormStateStash` |
+| [Registrars](docs/registrars.md) | `StoreSubmissionRegistrar`, `LaminasDbEntryRepository`, `EmailNotificationRegistrar`, webhooks |
+| [Rendering](docs/rendering.md) | `formMarkup` and `formStashedState` helpers, `Render\FormMarkup` |
+
+## Development
+
+The QA toolchain is [php-db/phpdb-qa-tools](https://github.com/php-db/phpdb-qa-tools).
+[Mago](https://mago.carthage.software/) is a standalone binary, installed
+separately (`brew install mago`).
+
+```bash
+composer check             # everything below
+composer cs-check          # mago format --check && mago lint
+composer static-analysis   # mago analyze
+composer test              # unit suite: stubs and in-memory session, no database
+composer test-integration  # integration suite: in-memory SQLite with the forms schema
+composer test-coverage     # both suites, clover.xml for Codecov
+```
 
 ## License
 
-MIT.
+MIT. See [LICENSE](LICENSE).

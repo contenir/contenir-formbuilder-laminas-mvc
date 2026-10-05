@@ -8,11 +8,15 @@
         "contenir/formbuilder": "^0.1.1 || ^2.0",
         "laminas/laminas-db": "^2.17",
         "laminas/laminas-form": "^3.20",
+        "laminas/laminas-http": "^2.19",
         "laminas/laminas-mail": "^2.22",
+        "laminas/laminas-mime": "^2.12",
         "laminas/laminas-mvc": "^3.4",
         "laminas/laminas-servicemanager": "^3.0",
         "laminas/laminas-session": "^2.16",
+        "laminas/laminas-stdlib": "^3.21",
         "laminas/laminas-view": "^2.30",
+        "psr/container": "^1.1 || ^2.0",
         "psr/log": "^1.0 || ^2.0 || ^3.0"
     },
     "require-dev": {

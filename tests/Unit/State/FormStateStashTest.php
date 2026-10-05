@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace Contenir\FormBuilder\Laminas\Mvc\Tests\Unit\State;
 
 use Contenir\FormBuilder\Laminas\Mvc\State\FormStateStash;
+use Contenir\FormBuilder\Laminas\Mvc\Tests\Trait\InMemorySessionTrait;
 use Laminas\Session\Container;
-use Laminas\Session\SessionManager;
-use Laminas\Session\Storage\ArrayStorage;
+use Override;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -15,7 +16,24 @@ use PHPUnit\Framework\TestCase;
 #[Group('unit')]
 final class FormStateStashTest extends TestCase
 {
+    use InMemorySessionTrait;
+
+    private Container $container;
+
     private FormStateStash $stash;
+
+    /**
+     * @return array<string, array{mixed}>
+     */
+    public static function malformedEntryProvider(): array
+    {
+        return [
+            'not an array'     => ['x'],
+            'missing errors'   => [['values' => []]],
+            'non-array values' => [['values' => 'x', 'errors' => []]],
+            'non-array errors' => [['values' => [], 'errors' => 'x']],
+        ];
+    }
 
     #[Test]
     public function consumeIsOneShot(): void
@@ -34,6 +52,17 @@ final class FormStateStashTest extends TestCase
     }
 
     #[Test]
+    public function defaultContainerUsesTheFormbuilderNamespace(): void
+    {
+        (new FormStateStash())->store('contact', ['a' => 1], []);
+
+        static::assertSame(
+            ['values' => ['a' => 1], 'errors' => []],
+            (new Container('ContenirFormBuilderFlash'))['form_contact'],
+        );
+    }
+
+    #[Test]
     public function entriesAreScopedPerSlug(): void
     {
         $this->stash->store('contact', ['name' => 'Alice'], []);
@@ -41,6 +70,18 @@ final class FormStateStashTest extends TestCase
 
         static::assertSame(['name' => 'Alice'], $this->stash->consume('contact')['values'] ?? null);
         static::assertSame(['name' => 'Bob'], $this->stash->consume('enquiry')['values'] ?? null);
+    }
+
+    #[Test]
+    #[DataProvider('malformedEntryProvider')]
+    public function malformedEntriesAreDiscarded(mixed $entry): void
+    {
+        $this->container['form_contact'] = $entry;
+
+        static::assertSame([null, false], [
+            $this->stash->consume('contact'),
+            $this->container->offsetExists('form_contact'),
+        ]);
     }
 
     #[Test]
@@ -85,17 +126,17 @@ final class FormStateStashTest extends TestCase
         );
     }
 
+    #[Override]
     protected function setUp(): void
     {
-        Container::setDefaultManager(null);
-        $manager = (new SessionManager())->setStorage(new ArrayStorage());
-        Container::setDefaultManager($manager);
-
-        $this->stash = new FormStateStash(new Container('FormStateStashTest'));
+        $this->setUpInMemorySession();
+        $this->container = new Container('FormStateStashTest');
+        $this->stash     = new FormStateStash($this->container);
     }
 
+    #[Override]
     protected function tearDown(): void
     {
-        Container::setDefaultManager(null);
+        $this->tearDownInMemorySession();
     }
 }

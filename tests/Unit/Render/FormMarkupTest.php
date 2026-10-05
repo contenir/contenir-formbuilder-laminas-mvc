@@ -72,6 +72,27 @@ final class FormMarkupTest extends TestCase
     }
 
     #[Test]
+    public function choiceListsAcceptValueAndLabelSpecs(): void
+    {
+        $radio = new Radio('size');
+        $radio->setValueOptions([
+            's'   => 'Small',
+            'x'   => ['value' => 'l', 'label' => 'Large'],
+            'bad' => ['label' => ['x']],
+        ]);
+        $form = $this->buildForm();
+        $form->add($radio);
+
+        $html = $this->renderer->render(FormDefinitionFactory::withFields([FormDefinitionFactory::field(
+            'radio',
+            'size',
+        )]), $form);
+
+        static::assertStringContainsString('for="size-l">Large</label>', $html);
+        static::assertStringNotContainsString('size-bad', $html);
+    }
+
+    #[Test]
     public function conditionalFieldGetsHiddenAttributeWhenRuleFails(): void
     {
         $form = $this->buildForm();
@@ -217,6 +238,21 @@ final class FormMarkupTest extends TestCase
             '<ul class="formbuilder__errors"><li>Invalid email address</li></ul>',
             $html,
         );
+    }
+
+    #[Test]
+    public function errorMessagesSkipNonScalarEntries(): void
+    {
+        $form = $this->buildForm();
+        $form->add(new Text('name'));
+        $form->get('name')->setMessages(['isEmpty' => 'Required', 'nested' => ['a', ['b']]]);
+
+        $html = $this->renderer->render(FormDefinitionFactory::withFields([FormDefinitionFactory::field(
+            'text',
+            'name',
+        )]), $form);
+
+        static::assertStringContainsString('<ul class="formbuilder__errors"><li>Required</li><li>a</li></ul>', $html);
     }
 
     #[Test]
@@ -562,6 +598,25 @@ final class FormMarkupTest extends TestCase
     }
 
     #[Test]
+    public function sectionWithoutGroupsRendersNothing(): void
+    {
+        $definition = new FormDefinition(
+            id: 1,
+            slug: 's',
+            title: 'S',
+            sections: [
+                new SectionDefinition(
+                    id: null,
+                    key: 'empty',
+                    legend: 'Invisible',
+                ),
+            ],
+        );
+
+        static::assertStringNotContainsString('Invisible', $this->renderer->render($definition, $this->buildForm()));
+    }
+
+    #[Test]
     public function singleCheckboxRendersWithoutSiblingLabelWhenElementLabelEmpty(): void
     {
         $form    = $this->buildForm();
@@ -627,6 +682,30 @@ final class FormMarkupTest extends TestCase
     }
 
     #[Test]
+    public function stepLabelFallsBackToTheKeyAndStepsShowDescriptions(): void
+    {
+        $definition = new FormDefinition(
+            id: 1,
+            slug: 's',
+            title: 'S',
+            layoutMode: FormDefinition::LAYOUT_STEPPED,
+            sections: [
+                new SectionDefinition(
+                    id: null,
+                    key: 'your-details_now',
+                    description: 'Tell us',
+                    groups: [new GroupDefinition(id: null)],
+                ),
+            ],
+        );
+
+        $html = $this->renderer->render($definition, $this->buildForm());
+
+        static::assertStringContainsString('</span> Your details now</button>', $html);
+        static::assertStringContainsString('<p class="formbuilder__step-description">Tell us</p>', $html);
+    }
+
+    #[Test]
     public function stepLayoutEmitsStepNavAndPerStepSections(): void
     {
         $form = $this->buildForm();
@@ -649,6 +728,31 @@ final class FormMarkupTest extends TestCase
     }
 
     #[Test]
+    public function steppedFormDropsANonScalarClass(): void
+    {
+        $form = $this->buildForm();
+        $form->setAttribute('class', ['x']);
+        $definition = new FormDefinition(
+            id: 1,
+            slug: 's',
+            title: 'S',
+            layoutMode: FormDefinition::LAYOUT_STEPPED,
+            sections: [
+                new SectionDefinition(
+                    id: null,
+                    key: 'only',
+                    groups: [new GroupDefinition(id: null)],
+                ),
+            ],
+        );
+
+        static::assertStringContainsString('class="formbuilder__form--stepped"', $this->renderer->render(
+            $definition,
+            $form,
+        ));
+    }
+
+    #[Test]
     public function submitAlignmentClassFollowsDefinition(): void
     {
         $form = $this->buildForm();
@@ -665,6 +769,18 @@ final class FormMarkupTest extends TestCase
         $html = $this->renderer->render($def, $form);
 
         static::assertStringContainsString('formbuilder__actions--right', $html);
+    }
+
+    #[Test]
+    public function unencodableConditionalRuleIsLeftOff(): void
+    {
+        $form = $this->buildForm();
+        $form->add(new Text('name'));
+        $definition = FormDefinitionFactory::withFields([
+            FormDefinitionFactory::field('text', 'name', ['conditional' => ['show_when' => "\xB1"]]),
+        ]);
+
+        static::assertStringNotContainsString('data-form-conditional', $this->renderer->render($definition, $form));
     }
 
     protected function setUp(): void
