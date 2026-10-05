@@ -24,6 +24,20 @@ final class LaminasDbEntryRepositoryTest extends TestCase
     private int $formId;
 
     #[Test]
+    public function commitsTheTransaction(): void
+    {
+        (new LaminasDbEntryRepository($this->adapter))->record(
+            $this->formId,
+            ['name' => 'Ann'],
+            'complete',
+            null,
+            null,
+        );
+
+        static::assertFalse($this->adapter->getDriver()->getConnection()->inTransaction());
+    }
+
+    #[Test]
     public function recordsTheEntryAndOneRowPerValue(): void
     {
         $repository = new LaminasDbEntryRepository($this->adapter);
@@ -84,6 +98,37 @@ final class LaminasDbEntryRepositoryTest extends TestCase
         }
 
         static::assertSame([], $this->rows('SELECT * FROM form_entry'));
+    }
+
+    #[Test]
+    public function storesArraysWithUnescapedSlashesAndUnicode(): void
+    {
+        (new LaminasDbEntryRepository($this->adapter))->record(
+            $this->formId,
+            ['links' => ['https://example.com/café']],
+            'complete',
+            null,
+            null,
+        );
+
+        static::assertSame(
+            '["https://example.com/café"]',
+            $this->rows('SELECT value_json FROM form_entry_value')[0]['value_json'],
+        );
+    }
+
+    #[Test]
+    public function storesFalseAsAnEmptyString(): void
+    {
+        (new LaminasDbEntryRepository($this->adapter))->record(
+            $this->formId,
+            ['agree' => false],
+            'complete',
+            null,
+            null,
+        );
+
+        static::assertSame('', $this->rows('SELECT value_text FROM form_entry_value')[0]['value_text']);
     }
 
     #[Test]

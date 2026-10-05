@@ -19,6 +19,23 @@ use function array_keys;
 final class ConfigProviderTest extends TestCase
 {
     #[Test]
+    public function exposesEachConfigSectionPublicly(): void
+    {
+        $provider = new ConfigProvider();
+
+        static::assertSame(
+            [
+                'service_manager' => $provider->getDependencies(),
+                'controllers'     => $provider->getControllers(),
+                'view_helpers'    => $provider->getViewHelpers(),
+                'router'          => $provider->getRouter(),
+                'formbuilder'     => $provider->getDefaults(),
+            ],
+            $provider(),
+        );
+    }
+
+    #[Test]
     public function moduleConfigIsTheConfigProviderOutput(): void
     {
         static::assertSame((new ConfigProvider())(), (new Module())->getConfig());
