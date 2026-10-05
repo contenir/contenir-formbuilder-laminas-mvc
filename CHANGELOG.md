@@ -24,6 +24,8 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 - Requires `contenir/formbuilder` ^2.1 for `TokenReplacer::replaceForHtml()`.
   Stay on 2.0.x of this package if you need formbuilder 0.1.
+- Conflicts with `laminas/laminas-uri` < 2.14, whose `Http::getPort()` raises a
+  PHP 8.5 deprecation when the controller reads the request host and port.
 
 ## [2.0.0] - 2026-10-05
 
