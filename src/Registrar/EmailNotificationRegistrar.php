@@ -29,7 +29,9 @@ use function preg_match;
 use function preg_replace;
 use function preg_split;
 use function sprintf;
+use function str_contains;
 use function strip_tags;
+use function strtolower;
 use function trim;
 use function wordwrap;
 
@@ -98,10 +100,13 @@ class EmailNotificationRegistrar implements SplObserver
         try {
             $message = new Message();
             $message->setEncoding('UTF-8');
-            $message->setSubject($this->tokens->replace($notification->subject, $form, $values, $entry));
+            $message->setSubject((string) preg_replace(
+                '/[\r\n]+/',
+                ' ',
+                $this->tokens->replace($notification->subject, $form, $values, $entry),
+            ));
 
-            $resolvedBody = $this->tokens->replace($notification->bodyTemplate ?? '', $form, $values, $entry);
-            $this->applyBody($message, $resolvedBody);
+            $this->applyBody($message, $notification->bodyTemplate ?? '', $form, $values, $entry);
 
             $this->applyAddress(
                 $notification->fromAddress,
@@ -137,20 +142,35 @@ class EmailNotificationRegistrar implements SplObserver
     }
 
     /**
-     * Apply the resolved notification body to the message.
+     * Expand the body template and apply it: HTML templates get escaped
+     * values and a multipart/alternative body, plain-text templates are set
+     * verbatim.
      *
-     * If the body contains any HTML markup, build a multipart/alternative
-     * MIME message with both an HTML part and a stripped-tag plain-text
-     * fallback so non-HTML clients (and spam scanners) get a readable
-     * version. A pure plain-text body is set verbatim — no MIME wrapper.
+     * @param array<string, mixed> $values
+     * @param array<string, mixed> $entry
      */
-    private function applyBody(Message $message, string $body): void
-    {
-        if (! $this->looksLikeHtml($body)) {
-            $message->setBody($body);
+    private function applyBody(
+        Message $message,
+        string $template,
+        FormDefinition $form,
+        array $values,
+        array $entry,
+    ): void {
+        if (! $this->isHtmlTemplate($template)) {
+            $message->setBody($this->tokens->replace($template, $form, $values, $entry));
             return;
         }
 
+        $this->applyHtmlBody($message, $this->tokens->replaceForHtml($template, $form, $values, $entry));
+    }
+
+    /**
+     * Apply a resolved HTML notification body as a multipart/alternative
+     * MIME message: the HTML part plus a stripped-tag plain-text fallback,
+     * so non-HTML clients (and spam scanners) get a readable version.
+     */
+    private function applyHtmlBody(Message $message, string $body): void
+    {
         $textPart           = new MimePart($this->htmlToText($body));
         $textPart->type     = Mime::TYPE_TEXT;
         $textPart->charset  = 'utf-8';
@@ -172,9 +192,18 @@ class EmailNotificationRegistrar implements SplObserver
         }
     }
 
-    private function looksLikeHtml(string $body): bool
+    /**
+     * Whether the body template, before merge tags are expanded, is HTML: it
+     * contains markup or `{entry:fields}`, which expands to an HTML table.
+     *
+     * Decided on the template, never the resolved body: otherwise a visitor
+     * could turn a plain-text notification into an HTML one by submitting
+     * markup, which would then be rendered unescaped.
+     */
+    private function isHtmlTemplate(string $template): bool
     {
-        return preg_match('/<[a-z!\/][^>]*>/i', $body) === 1;
+        return preg_match('/<[a-z!\/][^>]*>/i', $template) === 1
+            || str_contains(strtolower($template), '{entry:fields}');
     }
 
     /**
