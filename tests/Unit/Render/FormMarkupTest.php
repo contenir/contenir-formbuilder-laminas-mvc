@@ -32,6 +32,7 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
+use function implode;
 use function preg_match_all;
 
 #[Group('unit')]
@@ -766,39 +767,41 @@ final class FormMarkupTest extends TestCase
         ]);
 
         static::assertSame(
-            '<form method="POST" name="test" class="custom formbuilder__form--stepped" autocomplete="on"'
-                . ' data-form-stepper="true">'
-                . '<ol class="formbuilder__steps" role="tablist">'
-                . '<li><button type="button" class="formbuilder__step-tab is-active" data-form-step-target="about">'
-                . '<span class="formbuilder__step-tab-index">1</span> About</button></li>'
-                . '<li><button type="button" class="formbuilder__step-tab" data-form-step-target="contact-info" disabled>'
-                . '<span class="formbuilder__step-tab-index">2</span> Contact info</button></li>'
-                . '<li><button type="button" class="formbuilder__step-tab" data-form-step-target="extra" disabled>'
-                . '<span class="formbuilder__step-tab-index">3</span> Anything else</button></li>'
-                . '</ol>'
-                . '<section class="formbuilder__step is-active" data-form-step="about">'
-                . '<h2 class="formbuilder__step-title">About</h2>'
-                . $this->placeholderGroup('first_name', 'First_name')
-                . '<nav class="formbuilder__step-nav">'
-                . '<button type="button" class="btn btn--primary" data-form-step-next>Next</button>'
-                . '</nav>'
-                . '</section>'
-                . '<section class="formbuilder__step" data-form-step="contact-info" hidden>'
-                . $this->placeholderGroup('email', 'Email')
-                . '<nav class="formbuilder__step-nav">'
-                . '<button type="button" class="btn" data-form-step-prev>Previous</button>'
-                . '<button type="button" class="btn btn--primary" data-form-step-next>Next</button>'
-                . '</nav>'
-                . '</section>'
-                . '<section class="formbuilder__step" data-form-step="extra" hidden>'
-                . '<h2 class="formbuilder__step-title">Anything else</h2>'
-                . $this->placeholderGroup('notes', 'Notes')
-                . '<nav class="formbuilder__step-nav">'
-                . '<button type="button" class="btn" data-form-step-prev>Previous</button>'
-                . '<div class="formbuilder__actions formbuilder__actions--left"><input name="_submit"></div>'
-                . '</nav>'
-                . '</section>'
-                . '</form>',
+            implode('', [
+                '<form method="POST" name="test" class="custom formbuilder__form--stepped" autocomplete="on"',
+                ' data-form-stepper="true">',
+                '<ol class="formbuilder__steps" role="tablist">',
+                '<li><button type="button" class="formbuilder__step-tab is-active" data-form-step-target="about">',
+                '<span class="formbuilder__step-tab-index">1</span> About</button></li>',
+                '<li><button type="button" class="formbuilder__step-tab" data-form-step-target="contact-info" disabled>',
+                '<span class="formbuilder__step-tab-index">2</span> Contact info</button></li>',
+                '<li><button type="button" class="formbuilder__step-tab" data-form-step-target="extra" disabled>',
+                '<span class="formbuilder__step-tab-index">3</span> Anything else</button></li>',
+                '</ol>',
+                '<section class="formbuilder__step is-active" data-form-step="about">',
+                '<h2 class="formbuilder__step-title">About</h2>',
+                $this->placeholderGroup('first_name', 'First_name'),
+                '<nav class="formbuilder__step-nav">',
+                '<button type="button" class="btn btn--primary" data-form-step-next>Next</button>',
+                '</nav>',
+                '</section>',
+                '<section class="formbuilder__step" data-form-step="contact-info" hidden>',
+                $this->placeholderGroup('email', 'Email'),
+                '<nav class="formbuilder__step-nav">',
+                '<button type="button" class="btn" data-form-step-prev>Previous</button>',
+                '<button type="button" class="btn btn--primary" data-form-step-next>Next</button>',
+                '</nav>',
+                '</section>',
+                '<section class="formbuilder__step" data-form-step="extra" hidden>',
+                '<h2 class="formbuilder__step-title">Anything else</h2>',
+                $this->placeholderGroup('notes', 'Notes'),
+                '<nav class="formbuilder__step-nav">',
+                '<button type="button" class="btn" data-form-step-prev>Previous</button>',
+                '<div class="formbuilder__actions formbuilder__actions--left"><input name="_submit"></div>',
+                '</nav>',
+                '</section>',
+                '</form>',
+            ]),
             $this->placeholderRenderer()->render($definition, $form),
         );
     }

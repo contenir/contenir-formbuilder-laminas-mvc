@@ -102,6 +102,7 @@ final class SubmitControllerTest extends TestCase
                 'https://site.example/p?a=1&submit=contact',
             ],
             'unsafe anchor dropped'    => ['/p', '1bad/../x', '/p?submit=contact'],
+            'anchor with a path tail'  => ['/p', 'top/../x', '/p?submit=contact'],
             'array anchor dropped'     => ['/p', ['x'], '/p?submit=contact'],
             'no referrer'              => ['', '', '/?submit=contact'],
             'host matched case-blind'  => ['https://SITE.example/p', '', 'https://site.example/p?submit=contact'],
@@ -269,6 +270,14 @@ final class SubmitControllerTest extends TestCase
         [$result] = $this->dispatch($this->controller(), $request);
 
         static::assertSame('/c?submit=contact', $this->location($result));
+    }
+
+    #[Test]
+    public function submitActionIsPublic(): void
+    {
+        $controller = $this->controller();
+
+        static::assertSame(['error' => 'Method not allowed'], $this->json($controller->submitAction()));
     }
 
     #[Test]

@@ -44,7 +44,8 @@
             "@cs-check",
             "@static-analysis",
             "@test",
-            "@test-integration"
+            "@test-integration",
+            "@mutation-test"
         ],
         "cs-check": [
             "mago format --check",
