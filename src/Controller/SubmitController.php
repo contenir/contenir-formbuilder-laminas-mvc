@@ -9,6 +9,7 @@ use Contenir\FormBuilder\Laminas\Mvc\Loader\LaminasDbFormLoader;
 use Contenir\FormBuilder\Laminas\Mvc\State\FormStateStash;
 use Contenir\FormBuilder\Service\FormSubmissionService;
 use Contenir\FormBuilder\Service\TokenReplacer;
+use Laminas\Http\Request as HttpRequest;
 use Laminas\Http\Response;
 use Laminas\Mvc\Controller\AbstractActionController;
 use Laminas\View\Model\JsonModel;
@@ -192,10 +193,19 @@ class SubmitController extends AbstractActionController
      * Any pre-existing `submit` query value on the referer is replaced,
      * so two submissions in the same session don't accumulate
      * `?submit=...&submit=...`.
+     *
+     * The Referer header is client-supplied, so it is reduced to a local
+     * path or a same-host URL by {@see SameSiteReferer} first.
      */
     private function redirectToReferrer(?string $successSlug, string $anchor = ''): Response
     {
-        $referer  = (string) $this->getServerVar('HTTP_REFERER', '/');
+        $request  = $this->getRequest();
+        $uri      = $request instanceof HttpRequest ? $request->getUri() : null;
+        $referer  = SameSiteReferer::resolve(
+            $this->getServerVar('HTTP_REFERER'),
+            $uri?->getHost(),
+            $uri?->getPort(),
+        );
         $hashPos  = strpos($referer, '#');
         if ($hashPos !== false) {
             $referer = substr($referer, 0, $hashPos);
