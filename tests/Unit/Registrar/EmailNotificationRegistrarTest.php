@@ -106,6 +106,14 @@ final class EmailNotificationRegistrarTest extends TestCase
     }
 
     #[Test]
+    public function fieldsTableTagMakesATemplateHtml(): void
+    {
+        $message = $this->send('Entry: {ENTRY:fields}', []);
+
+        static::assertInstanceOf(MimeMessage::class, $message->getBody());
+    }
+
+    #[Test]
     public function htmlBodyIsSentAsMultipartAlternative(): void
     {
         $transport = new InMemory();
@@ -139,6 +147,16 @@ final class EmailNotificationRegistrarTest extends TestCase
     }
 
     #[Test]
+    public function htmlTemplateEscapesSubmittedValues(): void
+    {
+        $message = $this->send('<p>From {field:name}</p>', ['name' => '<img src=x onerror=alert(1)>']);
+
+        $mime = $message->getBody();
+        static::assertInstanceOf(MimeMessage::class, $mime);
+        static::assertSame('<p>From &lt;img src=x onerror=alert(1)&gt;</p>', $mime->getParts()[1]->getRawContent());
+    }
+
+    #[Test]
     public function invalidOrEmptySenderAddressesAreSkipped(): void
     {
         $transport = new InMemory();
@@ -162,6 +180,14 @@ final class EmailNotificationRegistrarTest extends TestCase
         $message = $transport->getLastMessage();
         static::assertInstanceOf(Message::class, $message);
         static::assertSame([0, 0], [$message->getFrom()->count(), $message->getReplyTo()->count()]);
+    }
+
+    #[Test]
+    public function plainTextTemplateStaysPlainWhenAValueContainsMarkup(): void
+    {
+        $message = $this->send('From {field:name}', ['name' => '<a href="https://evil.example">Click</a>']);
+
+        static::assertSame('From <a href="https://evil.example">Click</a>', $message->getBody());
     }
 
     #[Test]
@@ -234,5 +260,31 @@ final class EmailNotificationRegistrarTest extends TestCase
             'values' => 'x',
             'entry'  => 'y',
         ]));
+    }
+
+    /**
+     * Send one notification with $bodyTemplate and return the message.
+     *
+     * @param array<string, mixed> $values
+     */
+    private function send(string $bodyTemplate, array $values): Message
+    {
+        $transport = new InMemory();
+
+        (new EmailNotificationRegistrar(new TokenReplacer(), $transport))->update(self::subject([
+            'form'   => self::form([new NotificationDefinition(
+                id: 1,
+                name: 'Admin',
+                toAddress: 'a@example.com',
+                subject: 'S',
+                bodyTemplate: $bodyTemplate,
+            )]),
+            'values' => $values,
+        ]));
+
+        $message = $transport->getLastMessage();
+        static::assertInstanceOf(Message::class, $message);
+
+        return $message;
     }
 }

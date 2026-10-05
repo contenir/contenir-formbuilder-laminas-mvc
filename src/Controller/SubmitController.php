@@ -122,10 +122,12 @@ final class SubmitController extends AbstractActionController
         /** @var array<string, mixed> $post */
         $post = $postParameters->toArray();
         /** @var array<string, mixed> $files */
-        $files  = $fileParameters->toArray();
-        $anchor = $post['_anchor'] ?? '';
-        $anchor = $this->resolveAnchor(is_string($anchor) ? $anchor : '');
-        $result = $this->service->submit($form, $post, $files, [
+        $files   = $fileParameters->toArray();
+        $anchor  = $post['_anchor'] ?? '';
+        $anchor  = $this->resolveAnchor(is_string($anchor) ? $anchor : '');
+        $uri     = $request->getUri();
+        $referer = SameSiteReferer::resolve($this->serverVar('HTTP_REFERER'), $uri->getHost(), $uri->getPort());
+        $result  = $this->service->submit($form, $post, $files, [
             'ip'      => $this->serverVar('REMOTE_ADDR'),
             'user_id' => null,
             'meta'    => [
@@ -142,10 +144,10 @@ final class SubmitController extends AbstractActionController
             unset($post['_anchor']);
             $this->stash->store($form->slug, $post, $result->errors);
 
-            return $this->redirectToReferrer(null, $anchor);
+            return $this->redirectToReferrer($referer, null, $anchor);
         }
 
-        return $this->respondToSuccess($form, $result, $anchor);
+        return $this->respondToSuccess($form, $result, $anchor, $referer);
     }
 
     private function redirectTo(string $url): Response
@@ -169,9 +171,8 @@ final class SubmitController extends AbstractActionController
      * so two submissions in the same session don't accumulate
      * `?submit=...&submit=...`.
      */
-    private function redirectToReferrer(?string $successSlug, string $anchor): Response
+    private function redirectToReferrer(string $referer, ?string $successSlug, string $anchor): Response
     {
-        $referer = $this->serverVar('HTTP_REFERER', default: '/');
         $referer = (string) strstr("{$referer}#", needle: '#', before_needle: true);
         $base    = (string) strstr("{$referer}?", needle: '?', before_needle: true);
         $query   = [];
@@ -250,6 +251,7 @@ final class SubmitController extends AbstractActionController
         FormDefinition $form,
         SubmissionResult $result,
         string $anchor,
+        string $referer,
     ): JsonModel|Response {
         $success = $this->resolveSuccessSettings($form);
         $entry   = null === $result->entryId ? [] : ['id' => $result->entryId];
@@ -258,7 +260,7 @@ final class SubmitController extends AbstractActionController
             : null;
 
         if (! $this->wantsJson()) {
-            return null === $url ? $this->redirectToReferrer($form->slug, $anchor) : $this->redirectTo($url);
+            return null === $url ? $this->redirectToReferrer($referer, $form->slug, $anchor) : $this->redirectTo($url);
         }
 
         $payload = ['ok' => true, 'mode' => $success['mode']];

@@ -104,7 +104,26 @@ final class SubmitControllerTest extends TestCase
             'unsafe anchor dropped'    => ['/p', '1bad/../x', '/p?submit=contact'],
             'array anchor dropped'     => ['/p', ['x'], '/p?submit=contact'],
             'no referrer'              => ['', '', '/?submit=contact'],
+            'host matched case-blind'  => ['https://SITE.example/p', '', 'https://site.example/p?submit=contact'],
+            'other host'               => ['https://evil.example/p', '', '/?submit=contact'],
+            'lookalike host'           => ['https://site.example.evil.example/p', '', '/?submit=contact'],
+            'protocol-relative'        => ['//evil.example/p', '', '/?submit=contact'],
+            'backslash path'           => ['/\\evil.example/p', '', '/?submit=contact'],
+            'javascript scheme'        => ['javascript:alert(1)', '', '/?submit=contact'],
+            'same host, other port'    => ['https://site.example:8443/p', '', '/?submit=contact'],
+            'control character'        => ["/p\r\nLocation: https://evil.example", '', '/?submit=contact'],
+            'unparseable URL'          => ['http:///p', '', '/?submit=contact'],
         ];
+    }
+
+    #[Test]
+    public function absoluteReferrerIsRefusedWhenTheRequestHostIsUnknown(): void
+    {
+        $request = $this->request(server: ['HTTP_REFERER' => 'https://site.example/p']);
+
+        [$result] = $this->dispatch($this->controller(), $request);
+
+        static::assertSame('/?submit=contact', $this->location($result));
     }
 
     #[Test]
@@ -261,7 +280,7 @@ final class SubmitControllerTest extends TestCase
     ): void {
         $request = $this->request(
             post: ['_anchor' => $anchor],
-            server: '' === $referer ? [] : ['HTTP_REFERER' => $referer],
+            server: ['HTTP_HOST' => 'site.example', ...('' === $referer ? [] : ['HTTP_REFERER' => $referer])],
         );
 
         [$result] = $this->dispatch($this->controller(), $request);

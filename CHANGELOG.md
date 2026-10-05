@@ -4,7 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
-## [2.0.0] - Unreleased
+## [2.1.0] - Unreleased
+
+### Security
+
+- **HTML injection in notification emails.** `{field:*}` values were inserted
+  into HTML bodies unescaped, so a visitor could add markup to the email sent
+  to site admins. HTML bodies now go through `TokenReplacer::replaceForHtml()`,
+  which escapes every value.
+- **Plain-text bodies turned into HTML.** Whether a body was HTML was decided
+  after merge tags were expanded, so submitting markup into a plain-text
+  template made the whole message HTML, unescaped. The format is now decided
+  by the template alone: markup or `{entry:fields}` makes it HTML.
+- **Open redirect via Referer.** After a submission the controller redirected
+  to the client-supplied Referer as-is. It now only follows a local path or a
+  same-host `http(s)` URL, and redirects to `/` otherwise.
+
+### Changed
+
+- Requires `contenir/formbuilder` ^2.1 for `TokenReplacer::replaceForHtml()`.
+  Stay on 2.0.x of this package if you need formbuilder 0.1.
+
+## [2.0.0] - 2026-10-05
 
 The public API keeps its shape. The major version marks the move to PHP 8.3+
 and the php-db QA toolchain, `final` wiring classes, and several behaviour
