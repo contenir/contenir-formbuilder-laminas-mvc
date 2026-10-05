@@ -14,6 +14,7 @@ fixes. See [UPGRADE-2.0.md](UPGRADE-2.0.md).
 
 - Requires PHP 8.3, 8.4 or 8.5. PHP 8.1 and 8.2 are no longer supported.
 - Works with `contenir/formbuilder` `^0.1.1 || ^2.0`.
+- Requires laminas-mvc 3.8+, the first release without PHP 8.4 deprecations.
 - `Module` and every factory are `final`.
 - `laminas/laminas-http`, `laminas/laminas-mime`, `laminas/laminas-stdlib`
   (3.21+) and `psr/container`, used directly, are now declared dependencies.

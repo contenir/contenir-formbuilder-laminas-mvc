@@ -8,6 +8,7 @@ keys. Most sites only update the constraint.
 | PHP | ^8.1 | 8.3, 8.4 or 8.5 |
 | contenir/formbuilder | ^0.1.1 | ^0.1.1 or ^2.0 |
 | laminas-stdlib | any (indirect) | 3.21+ |
+| laminas-mvc | ^3.4 | ^3.8 |
 
 ```bash
 composer require contenir/formbuilder-laminas-mvc:^2.0
