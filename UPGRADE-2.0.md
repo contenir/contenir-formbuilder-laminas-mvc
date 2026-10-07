@@ -6,12 +6,12 @@ keys. Most sites only update the constraint.
 | | 0.x | 2.0 |
 | --- | --- | --- |
 | PHP | ^8.1 | 8.3, 8.4 or 8.5 |
-| contenir/formbuilder | ^0.1.1 | ^0.1.1 or ^2.0 |
+| contenir/formbuilder | ^0.1.1 | `contenir/contenir-formbuilder` ^2.0 |
 | laminas-stdlib | any (indirect) | 3.21+ |
 | laminas-mvc | ^3.4 | ^3.8 |
 
 ```bash
-composer require contenir/formbuilder-laminas-mvc:^2.0
+composer require contenir/contenir-formbuilder-laminas-mvc:^2.0@RC
 ```
 
 Projects that must stay on PHP 8.1 or 8.2 can keep using `^0.1`, maintained on
@@ -117,18 +117,18 @@ Server variables are only read from a `PhpEnvironment\Request`; a plain
 - `FormStateStash::consume()` documents `errors` as Laminas' nested messages
   (`array<array-key, mixed>`), which is what it always returned.
 
-## Package renamed in 2.2
+## Package renamed
 
-From 2.2, the package is published as
+From 2.0, the package is published as
 `contenir/contenir-formbuilder-laminas-mvc`. It declares `replace` for
 `contenir/formbuilder-laminas-mvc`, so the two can never be installed
 together. Switch the requirement:
 
 ```bash
-composer remove contenir/formbuilder-laminas-mvc && composer require contenir/contenir-formbuilder-laminas-mvc:^2.2
+composer remove contenir/formbuilder-laminas-mvc && composer require contenir/contenir-formbuilder-laminas-mvc:^2.0@RC
 ```
 
-2.2 also requires `contenir/contenir-formbuilder` `^2.2` (the renamed
+2.0 also requires `contenir/contenir-formbuilder` `^2.0` (the renamed
 `contenir/formbuilder`) instead of `contenir/formbuilder`. If you require
 `contenir/formbuilder` directly, switch that requirement as well. Sites that
 use file fields should likewise move from `contenir/storage` to
