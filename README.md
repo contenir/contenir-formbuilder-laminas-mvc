@@ -9,8 +9,8 @@ Laminas MVC adapter for [`contenir/contenir-formbuilder`](https://github.com/con
 
 It wires the framework-agnostic form-builder engine into a laminas-mvc site:
 
-- **`LaminasDbFormLoader`** reads form definitions from the forms schema
-  through laminas-db, one query per level.
+- **`PhpDbFormLoader`** reads form definitions from the forms schema
+  through php-db, one query per level.
 - **`SubmitController`** handles `POST /forms/submit/{slug}`: validation,
   spam trap, redirect or JSON response, and a one-shot stash so the form can
   be re-shown with errors after a redirect.
@@ -24,7 +24,7 @@ It wires the framework-agnostic form-builder engine into a laminas-mvc site:
 
 - PHP 8.3, 8.4 or 8.5
 - `contenir/contenir-formbuilder` 2.0 (use 0.1.6 of this package for `contenir/formbuilder` 0.1)
-- laminas-mvc 3.8+, laminas-db 2.17+, laminas-form, laminas-view, laminas-session, laminas-mail
+- laminas-mvc 3.8+, php-db/phpdb 0.6 (with the driver package for your database), laminas-form, laminas-view, laminas-session, laminas-mail
 - A database with the forms schema (`tests/install-forms.sqlite.sql` is the SQLite version)
 - Optional: `contenir/contenir-storage` 2.2+, registered as `Contenir\Storage\StorageManager`, for file uploads
 
@@ -51,13 +51,13 @@ The controller loads the definition and builds the form; the template only
 renders.
 
 ```php
-use Contenir\FormBuilder\Laminas\Mvc\Loader\LaminasDbFormLoader;
+use Contenir\FormBuilder\Laminas\Mvc\Loader\PhpDbFormLoader;
 use Contenir\FormBuilder\Service\FormBuilderService;
 
 final class ContactController extends AbstractActionController
 {
     public function __construct(
-        private LaminasDbFormLoader $loader,
+        private PhpDbFormLoader $loader,
         private FormBuilderService $builder,
     ) {}
 
@@ -93,9 +93,9 @@ The rendered form posts to `/forms/submit/{slug}`. See [docs/](docs/):
 | Page | Covers |
 | --- | --- |
 | [Configuration](docs/configuration.md) | The `formbuilder` config keys and registered services |
-| [Loading forms](docs/loading-forms.md) | `LaminasDbFormLoader`, the schema |
+| [Loading forms](docs/loading-forms.md) | `PhpDbFormLoader`, the schema |
 | [Submitting](docs/submitting.md) | `SubmitController`, success modes, JSON responses, `FormStateStash` |
-| [Registrars](docs/registrars.md) | `StoreSubmissionRegistrar`, `LaminasDbEntryRepository`, `EmailNotificationRegistrar`, webhooks |
+| [Registrars](docs/registrars.md) | `StoreSubmissionRegistrar`, `PhpDbEntryRepository`, `EmailNotificationRegistrar`, webhooks |
 | [Rendering](docs/rendering.md) | `formMarkup` and `formStashedState` helpers, `Render\FormMarkup` |
 
 ## Development

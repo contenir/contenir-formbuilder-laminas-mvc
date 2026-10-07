@@ -6,7 +6,6 @@ namespace Contenir\FormBuilder\Laminas\Mvc\Registrar;
 
 use Contenir\FormBuilder\Definition\FormDefinition;
 use Contenir\FormBuilder\Laminas\Mvc\Repository\EntryRepositoryInterface;
-use Contenir\FormBuilder\Laminas\Mvc\Repository\LaminasDbEntryRepository;
 use Contenir\FormBuilder\Service\BuilderForm;
 use Override;
 use SplObserver;
@@ -18,16 +17,12 @@ use function is_numeric;
 use function is_scalar;
 
 /**
- * Persists a submitted form into the entries tables (Laminas\Db edition).
+ * Stores a submitted form through the {@see EntryRepositoryInterface}.
  *
  * Reads the {@see BuilderForm} subject's registry for the form definition,
- * the canonical submitted values, and submission metadata, then delegates
- * to {@see LaminasDbEntryRepository::record()} so the persistence concern
+ * the canonical submitted values and the submission context, then delegates
+ * to {@see EntryRepositoryInterface::record()} so the persistence concern
  * stays in one place.
- *
- * Mirrors admin4's `PeptoCms\Form\Builder\Registrar\StoreSubmissionRegistrar`
- * but bound to a Laminas\Db repository — admin4's version persists while
- * this version covers the public submit path on Laminas-MVC sites.
  *
  * @api
  *
@@ -64,8 +59,8 @@ final class StoreSubmissionRegistrar implements SplObserver
         $userId  = $context['user_id'] ?? null;
         $meta    = $context['meta'] ?? [];
         $status  = true === ($registry['spam'] ?? false)
-            ? LaminasDbEntryRepository::STATUS_SPAM
-            : LaminasDbEntryRepository::STATUS_COMPLETE;
+            ? EntryRepositoryInterface::STATUS_SPAM
+            : EntryRepositoryInterface::STATUS_COMPLETE;
 
         $registry['entry_id'] = $this->repository->record(
             $form->id,

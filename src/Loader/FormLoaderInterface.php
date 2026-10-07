@@ -7,7 +7,7 @@ namespace Contenir\FormBuilder\Laminas\Mvc\Loader;
 use Contenir\FormBuilder\Definition\FormDefinition;
 
 /**
- * Source of form definitions. {@see LaminasDbFormLoader} reads the forms
+ * Source of form definitions. {@see PhpDbFormLoader} reads the forms
  * schema; implement this to load definitions from elsewhere and register the
  * implementation under this interface's name.
  *

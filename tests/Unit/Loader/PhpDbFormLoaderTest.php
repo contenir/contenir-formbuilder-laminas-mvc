@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Contenir\FormBuilder\Laminas\Mvc\Tests\Unit\Loader;
 
-use Contenir\FormBuilder\Laminas\Mvc\Loader\LaminasDbFormLoader;
+use Contenir\FormBuilder\Laminas\Mvc\Loader\PhpDbFormLoader;
 use Contenir\FormBuilder\Laminas\Mvc\Tests\TestAsset\Db\ArrayResult;
-use Laminas\Db\Adapter\Adapter;
-use Laminas\Db\Adapter\Driver\StatementInterface;
+use PhpDb\Adapter\AdapterInterface;
+use PhpDb\Adapter\Driver\StatementInterface;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -20,7 +20,7 @@ use function preg_match;
  * schema always fills from its column defaults.
  */
 #[Group('unit')]
-final class LaminasDbFormLoaderTest extends TestCase
+final class PhpDbFormLoaderTest extends TestCase
 {
     /** @var list<string> */
     private array $queries = [];
@@ -70,7 +70,7 @@ final class LaminasDbFormLoaderTest extends TestCase
      *
      * @param array<string, list<array<string, mixed>>> $rows
      */
-    private function loader(array $rows): LaminasDbFormLoader
+    private function loader(array $rows): PhpDbFormLoader
     {
         $rows += [
             'form'         => [['form_id' => 1, 'slug' => 'contact', 'title' => 'Contact']],
@@ -79,16 +79,30 @@ final class LaminasDbFormLoaderTest extends TestCase
             'form_row'     => [['form_row_id' => 4, 'form_group_id' => 3]],
         ];
 
-        $adapter = $this->createStub(Adapter::class);
-        $adapter->method('createStatement')
-            ->willReturnCallback(function (string $sql) use ($rows): StatementInterface {
+        $statements = [];
+        $adapter    = $this->createStub(AdapterInterface::class);
+        $adapter->method('prepareQuery')
+            ->willReturnCallback(function (string $sql) use (&$statements): StatementInterface {
                 $this->queries[] = $sql;
                 $statement       = $this->createStub(StatementInterface::class);
-                $statement->method('execute')->willReturn(new ArrayResult($rows[self::table($sql)] ?? []));
+                $statements[]    = [$statement, $sql];
 
                 return $statement;
             });
+        $adapter->method('executeQuery')
+            ->willReturnCallback(static function (StatementInterface $statement) use (
+                &$statements,
+                $rows,
+            ): ArrayResult {
+                foreach ($statements as [$prepared, $sql]) {
+                    if ($prepared === $statement) {
+                        return new ArrayResult($rows[self::table($sql)] ?? []);
+                    }
+                }
 
-        return new LaminasDbFormLoader($adapter);
+                return new ArrayResult([]);
+            });
+
+        return new PhpDbFormLoader($adapter);
     }
 }

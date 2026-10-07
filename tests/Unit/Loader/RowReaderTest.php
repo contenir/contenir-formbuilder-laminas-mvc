@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Contenir\FormBuilder\Laminas\Mvc\Tests\Unit\Loader;
 
-use Contenir\FormBuilder\Laminas\Mvc\Loader\LaminasDbFormLoader;
+use Contenir\FormBuilder\Laminas\Mvc\Loader\PhpDbFormLoader;
 use Contenir\FormBuilder\Laminas\Mvc\Loader\RowReader;
-use Laminas\Db\Adapter\Adapter;
-use Laminas\Db\Adapter\Driver\ResultInterface;
-use Laminas\Db\Adapter\Driver\StatementInterface;
+use Contenir\FormBuilder\Laminas\Mvc\Tests\TestAsset\Db\ArrayResult;
+use PhpDb\Adapter\AdapterInterface;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -19,17 +18,12 @@ final class RowReaderTest extends TestCase
     #[Test]
     public function loaderSkipsRowsThatAreNotArrays(): void
     {
-        $result = $this->createStub(ResultInterface::class);
-        $result->method('valid')->willReturnOnConsecutiveCalls(true, true, false);
-        $result->method('current')->willReturnOnConsecutiveCalls('not a row', ['form_id' => 3, 'slug' => 'c']);
-        $statement = $this->createStub(StatementInterface::class);
-        $statement->method('execute')->willReturn($result);
-        $adapter = $this->createStub(Adapter::class);
-        $adapter->method('createStatement')->willReturn($statement);
+        $adapter = $this->createStub(AdapterInterface::class);
+        $adapter->method('executeQuery')->willReturn(new ArrayResult(['not a row', ['form_id' => 3, 'slug' => 'c']]));
 
         static::assertSame(
             [['id' => 3, 'slug' => 'c', 'title' => '', 'status' => '']],
-            (new LaminasDbFormLoader($adapter))->listSummaries(),
+            (new PhpDbFormLoader($adapter))->listSummaries(),
         );
     }
 

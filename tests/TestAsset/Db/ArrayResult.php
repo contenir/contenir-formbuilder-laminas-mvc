@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace Contenir\FormBuilder\Laminas\Mvc\Tests\TestAsset\Db;
 
 use ArrayIterator;
-use Laminas\Db\Adapter\Driver\ResultInterface;
-
-use function count;
+use Override;
+use PhpDb\Adapter\Driver\ResultInterface;
+use PhpDb\ResultSet\ResultSet;
+use PhpDb\ResultSet\ResultSetInterface;
 
 /**
  * A query result over fixed rows, for loader tests that feed the hydrator
  * rows a real schema cannot produce (missing columns, non-array rows).
+ *
+ * @extends ArrayIterator<int, mixed>
  */
 final class ArrayResult extends ArrayIterator implements ResultInterface
 {
@@ -23,38 +26,46 @@ final class ArrayResult extends ArrayIterator implements ResultInterface
         parent::__construct($rows);
     }
 
+    #[Override]
     public function buffer(): void {}
 
-    public function count(): int
-    {
-        return count($this->getArrayCopy());
-    }
-
+    #[Override]
     public function getAffectedRows(): int
     {
         return 0;
     }
 
+    #[Override]
     public function getFieldCount(): int
     {
         return 0;
     }
 
-    public function getGeneratedValue(): mixed
+    #[Override]
+    public function getGeneratedValue(): string|int|false|null
     {
         return null;
     }
 
+    #[Override]
+    public function getQueryResult(?ResultSetInterface $resultPrototype = null): ResultSetInterface
+    {
+        return new ResultSet();
+    }
+
+    #[Override]
     public function getResource(): mixed
     {
         return null;
     }
 
-    public function isBuffered(): bool
+    #[Override]
+    public function isBuffered(): ?bool
     {
         return true;
     }
 
+    #[Override]
     public function isQueryResult(): bool
     {
         return true;

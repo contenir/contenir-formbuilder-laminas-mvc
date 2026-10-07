@@ -8,7 +8,7 @@ use Contenir\FormBuilder\Laminas\Mvc\ConfigProvider;
 use Contenir\FormBuilder\Laminas\Mvc\Controller\SubmitController;
 use Contenir\FormBuilder\Laminas\Mvc\Factory\SubmitControllerFactory;
 use Contenir\FormBuilder\Laminas\Mvc\Module;
-use Laminas\Db\Adapter\Adapter;
+use PhpDb\Adapter\AdapterInterface;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -56,7 +56,7 @@ final class ConfigProviderTest extends TestCase
         );
         static::assertSame('/forms/submit/:slug', $config['router']['routes']['forms-submit']['options']['route']);
         static::assertSame(
-            ['db_adapter' => Adapter::class, 'site_context' => [], 'token_resolvers' => [], 'observers' => []],
+            ['db_adapter' => AdapterInterface::class, 'site_context' => [], 'token_resolvers' => [], 'observers' => []],
             $config['formbuilder'],
         );
         static::assertSame(['formMarkup'], array_keys($config['view_helpers']['invokables']));
