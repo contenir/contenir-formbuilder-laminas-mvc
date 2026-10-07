@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "20c2f99af569a2f0ab6434956f832963",
+    "content-hash": "9d75b6b1867212718f9b9bdbce27b969",
     "packages": [
         {
             "name": "brick/varexporter",
@@ -57,16 +57,16 @@
         },
         {
             "name": "contenir/contenir-formbuilder",
-            "version": "v2.2.0",
+            "version": "dev-main",
             "source": {
                 "type": "git",
                 "url": "https://github.com/contenir/contenir-formbuilder.git",
-                "reference": "af35b2e0b6afe99c3cc6c4c57959a82e03d1abbd"
+                "reference": "00bf07c56f1bb28b7c69af2f72ce608cbae7f64a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/contenir/contenir-formbuilder/zipball/af35b2e0b6afe99c3cc6c4c57959a82e03d1abbd",
-                "reference": "af35b2e0b6afe99c3cc6c4c57959a82e03d1abbd",
+                "url": "https://api.github.com/repos/contenir/contenir-formbuilder/zipball/00bf07c56f1bb28b7c69af2f72ce608cbae7f64a",
+                "reference": "00bf07c56f1bb28b7c69af2f72ce608cbae7f64a",
                 "shasum": ""
             },
             "require": {
@@ -85,14 +85,15 @@
                 "contenir/formbuilder": "self.version"
             },
             "require-dev": {
+                "contenir/contenir-qa-tools": "0.1.x-dev",
                 "contenir/contenir-storage": "^2.2",
                 "infection/infection": "^0.34.1",
-                "php-db/phpdb-qa-tools": "0.1.x-dev",
                 "phpunit/phpunit": "^11.5.42"
             },
             "suggest": {
                 "contenir/contenir-storage": "Required for the file field type. Pass a Contenir\\Storage\\StorageManager into FormSubmissionService when uploads need to land on a configured storage profile."
             },
+            "default-branch": true,
             "type": "library",
             "extra": {
                 "branch-alias": {
@@ -111,9 +112,9 @@
             "description": "Framework-agnostic form-builder engine for Contenir CMS — runtime-editable form definitions, builder-form construction, server-side submission validation.",
             "support": {
                 "issues": "https://github.com/contenir/contenir-formbuilder/issues",
-                "source": "https://github.com/contenir/contenir-formbuilder/tree/v2.2.0"
+                "source": "https://github.com/contenir/contenir-formbuilder/tree/main"
             },
-            "time": "2026-10-05T20:09:42+00:00"
+            "time": "2026-10-07T03:10:52+00:00"
         },
         {
             "name": "laminas/laminas-config",

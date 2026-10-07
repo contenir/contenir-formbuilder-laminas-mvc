@@ -5,7 +5,7 @@
     "license": "MIT",
     "require": {
         "php": "~8.3.0 || ~8.4.0 || ~8.5.0",
-        "contenir/contenir-formbuilder": "^2.2",
+        "contenir/contenir-formbuilder": "^2.0",
         "laminas/laminas-db": "^2.17",
         "laminas/laminas-form": "^3.20",
         "laminas/laminas-http": "^2.19",
@@ -75,7 +75,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "2.2.x-dev"
+            "dev-main": "2.0.x-dev"
         },
         "laminas": {
             "module": "Contenir\\FormBuilder\\Laminas\\Mvc"

@@ -4,24 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
-## [2.2.0] - 2026-10-05
+## [2.0.0-RC1] - Unreleased
 
-### Changed
+The first 2.0 pre-release. The public API keeps its shape. The major version
+marks the move to PHP 8.3+ and the Contenir QA toolchain, `final` wiring
+classes, the package rename and several security and behaviour fixes. See
+[UPGRADE-2.0.md](UPGRADE-2.0.md).
 
-- Renamed from `contenir/formbuilder-laminas-mvc` to
-  `contenir/contenir-formbuilder-laminas-mvc`. The package declares `replace`
-  for the old name; require `contenir/contenir-formbuilder-laminas-mvc`
-  instead. See [UPGRADE-2.0.md](UPGRADE-2.0.md).
-- Requires `contenir/contenir-formbuilder` `^2.2`, the renamed
-  `contenir/formbuilder`, in place of `contenir/formbuilder` `^2.1`.
-- The optional storage integration names `contenir/contenir-storage` `^2.2`,
-  the renamed `contenir/storage`, in `suggest` and `require-dev`.
-
-### Added
-
-- Infection mutation testing in CI, MSI 100%.
-
-## [2.1.0] - 2026-10-05
+The 2.0.0, 2.1.0 and 2.2.0 tags published on 2026-10-05 were withdrawn and
+are folded into this release.
 
 ### Security
 
@@ -37,24 +28,23 @@ adheres to [Semantic Versioning](https://semver.org/).
   to the client-supplied Referer as-is. It now only follows a local path or a
   same-host `http(s)` URL, and redirects to `/` otherwise.
 
+0.1.6 backports the notification-body escaping, the subject line-break fix
+and the redirect check for sites that stay on `contenir/formbuilder` 0.1.
+
 ### Changed
 
-- Requires `contenir/formbuilder` ^2.1 for `TokenReplacer::replaceForHtml()`.
-  Stay on 2.0.x of this package if you need formbuilder 0.1.
+- Renamed from `contenir/formbuilder-laminas-mvc` to
+  `contenir/contenir-formbuilder-laminas-mvc`. The package declares `replace`
+  for the old name; require `contenir/contenir-formbuilder-laminas-mvc`
+  instead.
+- Requires `contenir/contenir-formbuilder` `^2.0`, the renamed
+  `contenir/formbuilder`, for `TokenReplacer::replaceForHtml()`.
+- The optional storage integration names `contenir/contenir-storage` `^2.2`,
+  the renamed `contenir/storage`, in `suggest` and `require-dev`.
+- Requires PHP 8.3, 8.4 or 8.5. PHP 8.1 and 8.2 are no longer supported.
+- Requires laminas-mvc 3.8+, the first release without PHP 8.4 deprecations.
 - Conflicts with `laminas/laminas-uri` < 2.14, whose `Http::getPort()` raises a
   PHP 8.5 deprecation when the controller reads the request host and port.
-
-## [2.0.0] - 2026-10-05
-
-The public API keeps its shape. The major version marks the move to PHP 8.3+
-and the php-db QA toolchain, `final` wiring classes, and several behaviour
-fixes. See [UPGRADE-2.0.md](UPGRADE-2.0.md).
-
-### Changed
-
-- Requires PHP 8.3, 8.4 or 8.5. PHP 8.1 and 8.2 are no longer supported.
-- Works with `contenir/formbuilder` `^0.1.1 || ^2.0`.
-- Requires laminas-mvc 3.8+, the first release without PHP 8.4 deprecations.
 - Every concrete class is `final`. `SubmitController` depends on the new
   `Loader\FormLoaderInterface` and `StoreSubmissionRegistrar` on the new
   `Repository\EntryRepositoryInterface`; `ConfigProvider` aliases both to the
@@ -83,7 +73,8 @@ fixes. See [UPGRADE-2.0.md](UPGRADE-2.0.md).
 ### Added
 
 - Continuous integration on PHP 8.3, 8.4 and 8.5 against lowest, locked and
-  latest dependencies, with coverage reported to Codecov.
+  latest dependencies, with coverage reported to Codecov and Infection
+  mutation testing at MSI 100%.
 - Unit and integration (in-memory SQLite) test suites with 100% line and
   branch coverage, and a `docs/` folder.
 
