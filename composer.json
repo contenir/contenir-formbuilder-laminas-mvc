@@ -20,10 +20,10 @@
         "psr/log": "^1.0 || ^2.0 || ^3.0"
     },
     "require-dev": {
+        "contenir/contenir-qa-tools": "0.1.x-dev",
         "contenir/contenir-storage": "^2.2",
         "infection/infection": "^0.34.1",
         "laminas/laminas-i18n": "^2.32",
-        "php-db/phpdb-qa-tools": "0.1.x-dev",
         "phpunit/phpunit": "^11.5.42"
     },
     "replace": {
