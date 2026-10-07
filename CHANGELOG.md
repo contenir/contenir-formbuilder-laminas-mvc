@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
-## [2.0.0-RC1] - Unreleased
+## [2.0.0-RC1] - 2026-10-07
 
 The first 2.0 pre-release. The public API keeps its shape. The major version
 marks the move to PHP 8.3+ and the Contenir QA toolchain, `final` wiring
