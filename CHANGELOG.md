@@ -45,10 +45,19 @@ and the redirect check for sites that stay on `contenir/formbuilder` 0.1.
 - Requires laminas-mvc 3.8+, the first release without PHP 8.4 deprecations.
 - Conflicts with `laminas/laminas-uri` < 2.14, whose `Http::getPort()` raises a
   PHP 8.5 deprecation when the controller reads the request host and port.
+- The database layer moves from `laminas/laminas-db` to `php-db/phpdb`
+  (`0.6.x-dev`), as in the Mezzio adapter. `PhpDbFormLoader` and
+  `PhpDbEntryRepository`, with their factories, replace `LaminasDbFormLoader`
+  and `LaminasDbEntryRepository`, and `formbuilder.db_adapter` defaults to
+  `PhpDb\Adapter\AdapterInterface`. The schema and queries are unchanged.
+  `PhpDbEntryRepository` takes a `Psr\Clock\ClockInterface` for the
+  submission time (the container's, or the system clock), and the
+  `STATUS_*` constants move to `Repository\EntryRepositoryInterface`. See
+  [UPGRADE-2.0.md](UPGRADE-2.0.md).
 - Every concrete class is `final`. `SubmitController` depends on the new
   `Loader\FormLoaderInterface` and `StoreSubmissionRegistrar` on the new
   `Repository\EntryRepositoryInterface`; `ConfigProvider` aliases both to the
-  Laminas\Db implementations.
+  php-db implementations.
 - `laminas/laminas-http`, `laminas/laminas-mime`, `laminas/laminas-stdlib`
   (3.21+) and `psr/container`, used directly, are now declared dependencies.
 - `SubmitController` reads server variables and uploaded files from the
@@ -60,13 +69,13 @@ and the redirect check for sites that stay on `contenir/formbuilder` 0.1.
 - Factories check service types and fail with `UnexpectedValueException`
   naming the misconfigured service; optional services of the wrong type are
   ignored.
-- `LaminasDbFormLoader` reads columns type-safely; validators without a scalar
+- `PhpDbFormLoader` reads columns type-safely; validators without a scalar
   type are skipped.
 - `Render\FormMarkup` omits `false` and non-scalar attributes and accepts
   `['value' => …, 'label' => …]` option specs, like the core renderer.
 - `StoreSubmissionRegistrar` stores a non-numeric `user_id` and a non-scalar
   `ip` as NULL.
-- Class constants are typed (`LaminasDbEntryRepository::STATUS_*`).
+- Class constants are typed (`EntryRepositoryInterface::STATUS_*`).
 - The MIT licence's copyright holder is now Contenir, and the text restores
   the missing "USE OR OTHER" wording.
 

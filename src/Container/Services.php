@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Contenir\FormBuilder\Laminas\Mvc\Container;
 
+use PhpDb\Adapter\AdapterInterface;
 use Psr\Container\ContainerExceptionInterface;
 use Psr\Container\ContainerInterface;
 use UnexpectedValueException;
 
 use function get_debug_type;
 use function is_array;
+use function is_string;
 use function sprintf;
 
 /**
@@ -21,6 +23,26 @@ use function sprintf;
  */
 final readonly class Services
 {
+    /**
+     * The php-db adapter named by `formbuilder.db_adapter`, by default the
+     * `PhpDb\Adapter\AdapterInterface` service.
+     *
+     * @throws ContainerExceptionInterface
+     * @throws UnexpectedValueException When the service is not a php-db adapter.
+     *
+     * @mago-expect analysis:mixed-assignment Configuration is untyped input; the adapter id is checked with is_string().
+     */
+    public static function adapter(ContainerInterface $container): AdapterInterface
+    {
+        $adapterId = self::config($container)['db_adapter'] ?? null;
+
+        return self::get(
+            $container,
+            is_string($adapterId) && '' !== $adapterId ? $adapterId : AdapterInterface::class,
+            AdapterInterface::class,
+        );
+    }
+
     /**
      * The `formbuilder` section of the application configuration.
      *

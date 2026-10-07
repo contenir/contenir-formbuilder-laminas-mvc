@@ -8,23 +8,23 @@ use Contenir\FormBuilder\Laminas\Mvc\Controller\SubmitController;
 use Contenir\FormBuilder\Laminas\Mvc\Factory\EmailNotificationRegistrarFactory;
 use Contenir\FormBuilder\Laminas\Mvc\Factory\FormStashedStateFactory;
 use Contenir\FormBuilder\Laminas\Mvc\Factory\FormStateStashFactory;
-use Contenir\FormBuilder\Laminas\Mvc\Factory\LaminasDbEntryRepositoryFactory;
-use Contenir\FormBuilder\Laminas\Mvc\Factory\LaminasDbFormLoaderFactory;
+use Contenir\FormBuilder\Laminas\Mvc\Factory\PhpDbEntryRepositoryFactory;
+use Contenir\FormBuilder\Laminas\Mvc\Factory\PhpDbFormLoaderFactory;
 use Contenir\FormBuilder\Laminas\Mvc\Factory\StoreSubmissionRegistrarFactory;
 use Contenir\FormBuilder\Laminas\Mvc\Factory\SubmitControllerFactory;
 use Contenir\FormBuilder\Laminas\Mvc\Factory\TokenReplacerFactory;
 use Contenir\FormBuilder\Laminas\Mvc\Factory\WebhookRegistrarFactory;
 use Contenir\FormBuilder\Laminas\Mvc\Loader\FormLoaderInterface;
-use Contenir\FormBuilder\Laminas\Mvc\Loader\LaminasDbFormLoader;
+use Contenir\FormBuilder\Laminas\Mvc\Loader\PhpDbFormLoader;
 use Contenir\FormBuilder\Laminas\Mvc\Registrar\EmailNotificationRegistrar;
 use Contenir\FormBuilder\Laminas\Mvc\Registrar\StoreSubmissionRegistrar;
 use Contenir\FormBuilder\Laminas\Mvc\Repository\EntryRepositoryInterface;
-use Contenir\FormBuilder\Laminas\Mvc\Repository\LaminasDbEntryRepository;
+use Contenir\FormBuilder\Laminas\Mvc\Repository\PhpDbEntryRepository;
 use Contenir\FormBuilder\Laminas\Mvc\State\FormStateStash;
 use Contenir\FormBuilder\Laminas\Mvc\View\Helper\FormMarkup;
 use Contenir\FormBuilder\Registrar\WebhookRegistrar;
 use Contenir\FormBuilder\Service\TokenReplacer;
-use Laminas\Db\Adapter\Adapter;
+use PhpDb\Adapter\AdapterInterface;
 
 /**
  * Returns the merged Laminas-MVC config consumed by Module::getConfig().
@@ -50,12 +50,11 @@ final class ConfigProvider
     public function getDefaults(): array
     {
         return [
-            // Service id of the Laminas\Db\Adapter\Adapter the loader and
-            // repository should consume. Defaults to the conventional
-            // 'Laminas\Db\Adapter\Adapter' service name; override in the
-            // consuming site's `formbuilder.global.php` if your DB adapter
-            // is registered under a different key.
-            'db_adapter' => Adapter::class,
+            // Service id of the php-db adapter (PhpDb\Adapter\AdapterInterface)
+            // the loader and repository consume. Override in the consuming
+            // site's `formbuilder.global.php` if the adapter is registered
+            // under a different key.
+            'db_adapter' => AdapterInterface::class,
             // Static values for {site:*} TokenReplacer expansion.
             'site_context' => [],
             // Map of additional TokenReplacer namespaces => service-manager
@@ -80,12 +79,12 @@ final class ConfigProvider
     {
         return [
             'aliases'   => [
-                FormLoaderInterface::class      => LaminasDbFormLoader::class,
-                EntryRepositoryInterface::class => LaminasDbEntryRepository::class,
+                FormLoaderInterface::class      => PhpDbFormLoader::class,
+                EntryRepositoryInterface::class => PhpDbEntryRepository::class,
             ],
             'factories' => [
-                LaminasDbFormLoader::class        => LaminasDbFormLoaderFactory::class,
-                LaminasDbEntryRepository::class   => LaminasDbEntryRepositoryFactory::class,
+                PhpDbFormLoader::class            => PhpDbFormLoaderFactory::class,
+                PhpDbEntryRepository::class       => PhpDbEntryRepositoryFactory::class,
                 StoreSubmissionRegistrar::class   => StoreSubmissionRegistrarFactory::class,
                 EmailNotificationRegistrar::class => EmailNotificationRegistrarFactory::class,
                 WebhookRegistrar::class           => WebhookRegistrarFactory::class,
@@ -123,7 +122,7 @@ final class ConfigProvider
      * `formMarkup` is a pure renderer that takes a FormDefinition and
      * a built Laminas\Form. By design no view helper does its own
      * data fetching: the controller owns loading the definition (via
-     * {@see LaminasDbFormLoader}) and building the form (via
+     * {@see PhpDbFormLoader}) and building the form (via
      * {@see \Contenir\FormBuilder\Service\FormBuilderService}), and
      * passes both to the template.
      *

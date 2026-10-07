@@ -36,7 +36,7 @@ use function substr;
  * Public POST endpoint for site submissions.
  *
  * Routes typically map at `/forms/submit/{slug}`. The controller:
- *  - Resolves the form by slug via {@see LaminasDbFormLoader}.
+ *  - Resolves the form by slug via the {@see FormLoaderInterface}.
  *  - Hands off to {@see FormSubmissionService} for build / validate /
  *    spam-detection / dispatch.
  *  - Branches on the form's `settings.success.mode` for the response:

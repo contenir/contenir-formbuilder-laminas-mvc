@@ -5,21 +5,22 @@ declare(strict_types=1);
 namespace Contenir\FormBuilder\Laminas\Mvc\Tests\Unit\Factory;
 
 use ArrayObject;
+use Contenir\FormBuilder\Laminas\Mvc\Clock\SystemClock;
 use Contenir\FormBuilder\Laminas\Mvc\Controller\SubmitController;
 use Contenir\FormBuilder\Laminas\Mvc\Factory\EmailNotificationRegistrarFactory;
 use Contenir\FormBuilder\Laminas\Mvc\Factory\FormStashedStateFactory;
 use Contenir\FormBuilder\Laminas\Mvc\Factory\FormStateStashFactory;
-use Contenir\FormBuilder\Laminas\Mvc\Factory\LaminasDbEntryRepositoryFactory;
-use Contenir\FormBuilder\Laminas\Mvc\Factory\LaminasDbFormLoaderFactory;
+use Contenir\FormBuilder\Laminas\Mvc\Factory\PhpDbEntryRepositoryFactory;
+use Contenir\FormBuilder\Laminas\Mvc\Factory\PhpDbFormLoaderFactory;
 use Contenir\FormBuilder\Laminas\Mvc\Factory\StoreSubmissionRegistrarFactory;
 use Contenir\FormBuilder\Laminas\Mvc\Factory\SubmitControllerFactory;
 use Contenir\FormBuilder\Laminas\Mvc\Factory\WebhookRegistrarFactory;
 use Contenir\FormBuilder\Laminas\Mvc\Loader\FormLoaderInterface;
-use Contenir\FormBuilder\Laminas\Mvc\Loader\LaminasDbFormLoader;
+use Contenir\FormBuilder\Laminas\Mvc\Loader\PhpDbFormLoader;
 use Contenir\FormBuilder\Laminas\Mvc\Registrar\EmailNotificationRegistrar;
 use Contenir\FormBuilder\Laminas\Mvc\Registrar\StoreSubmissionRegistrar;
 use Contenir\FormBuilder\Laminas\Mvc\Repository\EntryRepositoryInterface;
-use Contenir\FormBuilder\Laminas\Mvc\Repository\LaminasDbEntryRepository;
+use Contenir\FormBuilder\Laminas\Mvc\Repository\PhpDbEntryRepository;
 use Contenir\FormBuilder\Laminas\Mvc\State\FormStateStash;
 use Contenir\FormBuilder\Laminas\Mvc\Tests\TestAsset\Container\InMemoryContainer;
 use Contenir\FormBuilder\Laminas\Mvc\Tests\TestAsset\Observer\RecordingObserver;
@@ -28,14 +29,16 @@ use Contenir\FormBuilder\Laminas\Mvc\View\Helper\FormStashedState;
 use Contenir\FormBuilder\Registrar\WebhookRegistrar;
 use Contenir\FormBuilder\Service\TokenReplacer;
 use Contenir\Storage\StorageManager;
-use Laminas\Db\Adapter\Adapter;
+use DateTimeImmutable;
 use Laminas\Mail\Transport\InMemory;
 use Laminas\Mail\Transport\TransportInterface;
 use Laminas\Session\Container;
 use Override;
+use PhpDb\Adapter\AdapterInterface;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Psr\Clock\ClockInterface;
 use Psr\Log\LoggerInterface;
 use ReflectionProperty;
 
@@ -50,9 +53,32 @@ final class FactoriesTest extends TestCase
     use InMemorySessionTrait;
 
     #[Test]
+    public function buildsTheEntryRepositoryWithTheRegisteredClock(): void
+    {
+        $clock = $this->createMock(ClockInterface::class);
+        $clock->expects($this->once())->method('now')->willReturn(new DateTimeImmutable());
+
+        $repository = (new PhpDbEntryRepositoryFactory())(new InMemoryContainer([
+            AdapterInterface::class => $this->createStub(AdapterInterface::class),
+            ClockInterface::class   => $clock,
+        ]));
+        $repository->record(1, [], 'complete', null, null);
+    }
+
+    #[Test]
+    public function buildsTheEntryRepositoryWithTheSystemClockByDefault(): void
+    {
+        $repository = (new PhpDbEntryRepositoryFactory())(new InMemoryContainer([
+            AdapterInterface::class => $this->createStub(AdapterInterface::class),
+        ]));
+
+        static::assertInstanceOf(SystemClock::class, $this->property($repository, 'clock'));
+    }
+
+    #[Test]
     public function dbFactoriesUseTheConfiguredAdapterService(): void
     {
-        $adapter   = $this->createStub(Adapter::class);
+        $adapter   = $this->createStub(AdapterInterface::class);
         $container = new InMemoryContainer([
             'config'   => ['formbuilder' => ['db_adapter' => 'db.forms']],
             'db.forms' => $adapter,
@@ -61,8 +87,8 @@ final class FactoriesTest extends TestCase
         static::assertSame(
             [$adapter, $adapter],
             [
-                $this->property((new LaminasDbFormLoaderFactory())($container), 'adapter'),
-                $this->property((new LaminasDbEntryRepositoryFactory())($container), 'adapter'),
+                $this->property((new PhpDbFormLoaderFactory())($container), 'adapter'),
+                $this->property((new PhpDbEntryRepositoryFactory())($container), 'adapter'),
             ],
         );
     }
@@ -70,14 +96,14 @@ final class FactoriesTest extends TestCase
     #[Test]
     public function dbFactoriesUseTheDefaultAdapterService(): void
     {
-        $adapter   = $this->createStub(Adapter::class);
-        $container = new InMemoryContainer([Adapter::class => $adapter]);
+        $adapter   = $this->createStub(AdapterInterface::class);
+        $container = new InMemoryContainer([AdapterInterface::class => $adapter]);
 
         static::assertSame(
             [$adapter, $adapter],
             [
-                $this->property((new LaminasDbFormLoaderFactory())($container), 'adapter'),
-                $this->property((new LaminasDbEntryRepositoryFactory())($container), 'adapter'),
+                $this->property((new PhpDbFormLoaderFactory())($container), 'adapter'),
+                $this->property((new PhpDbEntryRepositoryFactory())($container), 'adapter'),
             ],
         );
     }
@@ -106,7 +132,7 @@ final class FactoriesTest extends TestCase
         $tokens     = new TokenReplacer();
         $transport  = new InMemory();
         $logger     = $this->createStub(LoggerInterface::class);
-        $repository = new LaminasDbEntryRepository($this->createStub(Adapter::class));
+        $repository = new PhpDbEntryRepository($this->createStub(AdapterInterface::class), new SystemClock());
         $container  = new InMemoryContainer([
             TokenReplacer::class            => $tokens,
             TransportInterface::class       => $transport,
@@ -197,7 +223,7 @@ final class FactoriesTest extends TestCase
     private function controllerContainer(array $extra): InMemoryContainer
     {
         return new InMemoryContainer([
-            FormLoaderInterface::class      => new LaminasDbFormLoader($this->createStub(Adapter::class)),
+            FormLoaderInterface::class      => new PhpDbFormLoader($this->createStub(AdapterInterface::class)),
             FormStateStash::class           => new FormStateStash(new Container('test')),
             TokenReplacer::class            => new TokenReplacer(),
             StoreSubmissionRegistrar::class => new StoreSubmissionRegistrar($this->createStub(

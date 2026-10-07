@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Contenir\FormBuilder\Laminas\Mvc\Tests\Integration\Repository;
 
-use Contenir\FormBuilder\Laminas\Mvc\Repository\LaminasDbEntryRepository;
+use Contenir\FormBuilder\Laminas\Mvc\Repository\EntryRepositoryInterface;
+use Contenir\FormBuilder\Laminas\Mvc\Repository\PhpDbEntryRepository;
+use Contenir\FormBuilder\Laminas\Mvc\Tests\TestAsset\Clock\FrozenClock;
 use Contenir\FormBuilder\Laminas\Mvc\Tests\Trait\SqliteDatabaseTrait;
 use Override;
 use PHPUnit\Framework\Attributes\Group;
@@ -17,7 +19,7 @@ use function array_map;
 
 #[Group('integration')]
 #[Group('repository')]
-final class LaminasDbEntryRepositoryTest extends TestCase
+final class PhpDbEntryRepositoryTest extends TestCase
 {
     use SqliteDatabaseTrait;
 
@@ -26,7 +28,7 @@ final class LaminasDbEntryRepositoryTest extends TestCase
     #[Test]
     public function commitsTheTransaction(): void
     {
-        (new LaminasDbEntryRepository($this->adapter))->record(
+        (new PhpDbEntryRepository($this->adapter, new FrozenClock()))->record(
             $this->formId,
             ['name' => 'Ann'],
             'complete',
@@ -34,18 +36,18 @@ final class LaminasDbEntryRepositoryTest extends TestCase
             null,
         );
 
-        static::assertFalse($this->adapter->getDriver()->getConnection()->inTransaction());
+        static::assertFalse($this->pdo->inTransaction());
     }
 
     #[Test]
     public function recordsTheEntryAndOneRowPerValue(): void
     {
-        $repository = new LaminasDbEntryRepository($this->adapter);
+        $repository = new PhpDbEntryRepository($this->adapter, new FrozenClock());
 
         $id = $repository->record(
             $this->formId,
             ['name' => 'Ann', 'tags' => ['a', 'b'], 'age' => 42, 'blob' => new stdClass()],
-            LaminasDbEntryRepository::STATUS_COMPLETE,
+            EntryRepositoryInterface::STATUS_COMPLETE,
             '10.0.0.1',
             7,
             ['user_agent' => 'UA/1'],
@@ -63,10 +65,7 @@ final class LaminasDbEntryRepositoryTest extends TestCase
                 $entry['meta_json'],
             ],
         );
-        static::assertMatchesRegularExpression(
-            '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/',
-            (string) $entry['submitted_at'],
-        );
+        static::assertSame('2026-10-06 09:30:15', $entry['submitted_at']);
         static::assertSame(
             [
                 ['name', 'Ann', null],
@@ -84,8 +83,8 @@ final class LaminasDbEntryRepositoryTest extends TestCase
     #[Test]
     public function rollsBackTheEntryWhenAValueCannotBeStored(): void
     {
-        $this->adapter->query('DROP TABLE form_entry_value', 'execute');
-        $repository = new LaminasDbEntryRepository($this->adapter);
+        $this->pdo->exec('DROP TABLE form_entry_value');
+        $repository = new PhpDbEntryRepository($this->adapter, new FrozenClock());
 
         try {
             $repository->record($this->formId, ['name' => 'Ann'], 'complete', null, null);
@@ -103,7 +102,7 @@ final class LaminasDbEntryRepositoryTest extends TestCase
     #[Test]
     public function storesArraysWithUnescapedSlashesAndUnicode(): void
     {
-        (new LaminasDbEntryRepository($this->adapter))->record(
+        (new PhpDbEntryRepository($this->adapter, new FrozenClock()))->record(
             $this->formId,
             ['links' => ['https://example.com/café']],
             'complete',
@@ -120,7 +119,7 @@ final class LaminasDbEntryRepositoryTest extends TestCase
     #[Test]
     public function storesFalseAsAnEmptyString(): void
     {
-        (new LaminasDbEntryRepository($this->adapter))->record(
+        (new PhpDbEntryRepository($this->adapter, new FrozenClock()))->record(
             $this->formId,
             ['agree' => false],
             'complete',
@@ -134,10 +133,10 @@ final class LaminasDbEntryRepositoryTest extends TestCase
     #[Test]
     public function storesNoMetaAndAnonymousEntriesAsNull(): void
     {
-        (new LaminasDbEntryRepository($this->adapter))->record(
+        (new PhpDbEntryRepository($this->adapter, new FrozenClock()))->record(
             $this->formId,
             [],
-            LaminasDbEntryRepository::STATUS_SPAM,
+            EntryRepositoryInterface::STATUS_SPAM,
             null,
             null,
         );

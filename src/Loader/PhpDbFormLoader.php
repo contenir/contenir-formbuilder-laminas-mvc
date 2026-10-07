@@ -12,12 +12,11 @@ use Contenir\FormBuilder\Definition\RowDefinition;
 use Contenir\FormBuilder\Definition\SectionDefinition;
 use Contenir\FormBuilder\Definition\ValidatorDefinition;
 use Contenir\FormBuilder\Definition\WebhookDefinition;
-use Laminas\Db\Adapter\Adapter;
 use Override;
+use PhpDb\Adapter\AdapterInterface;
+use PhpDb\Exception\ExceptionInterface as PhpDbException;
 
-use function array_fill;
 use function array_map;
-use function count;
 use function implode;
 use function is_array;
 use function is_scalar;
@@ -28,12 +27,11 @@ use function strtoupper;
 
 /**
  * Hydrates {@see FormDefinition} aggregates from the forms schema using
- * a Laminas\Db adapter.
+ * a php-db adapter.
  *
- * Mirrors the bulk-fetch shape of admin4's `DbFormLoader` (one query
- * per level: form → sections → groups → rows → fields, plus
- * notifications and webhooks) so cost is fixed regardless of form
- * size — no N+1 traversal.
+ * Fetches in bulk, one query per level (form → sections → groups → rows →
+ * fields, plus notifications and webhooks), so the cost is fixed regardless of
+ * the form's size: no N+1 traversal.
  *
  * @api
  *
@@ -41,11 +39,19 @@ use function strtoupper;
  * @mago-expect lint:kan-defect Kept whole for 2.0 (one builder per table); splitting it is a proposed follow-up.
  * @mago-expect lint:too-many-methods Kept whole for 2.0 (one builder per table); splitting it is a proposed follow-up.
  */
-final class LaminasDbFormLoader implements FormLoaderInterface
+final class PhpDbFormLoader implements FormLoaderInterface
 {
     public function __construct(
-        private Adapter $adapter,
+        private AdapterInterface $adapter,
     ) {}
+
+    /**
+     * A field spans 1 to 4 columns, 4 when the column is empty.
+     */
+    private static function colSpan(?int $span): int
+    {
+        return null === $span ? 4 : max(1, min(4, $span));
+    }
 
     /**
      * @param array<array-key, mixed> $raw
@@ -121,24 +127,20 @@ final class LaminasDbFormLoader implements FormLoaderInterface
      *
      * @return list<ValidatorDefinition>
      *
+     * Entries without a scalar `type` are skipped; {@see ValidatorDefinition::fromArray()}
+     * coerces the rest.
+     *
      * @mago-expect analysis:mixed-assignment Decoded JSON is untyped; each entry is checked before use.
      */
     private static function validators(array $raw): array
     {
         $validators = [];
         foreach ($raw as $entry) {
-            $type = is_array($entry) ? $entry['type'] ?? null : null;
-            if (! is_scalar($type)) {
+            if (! is_array($entry) || ! is_scalar($entry['type'] ?? null)) {
                 continue;
             }
 
-            $options      = $entry['options'] ?? [];
-            $message      = $entry['message'] ?? null;
-            $validators[] = ValidatorDefinition::fromArray([
-                'type'    => (string) $type,
-                'options' => is_array($options) ? self::stringKeys($options) : [],
-                'message' => is_scalar($message) ? (string) $message : null,
-            ]);
+            $validators[] = ValidatorDefinition::fromArray($entry);
         }
 
         return $validators;
@@ -148,6 +150,8 @@ final class LaminasDbFormLoader implements FormLoaderInterface
      * Lightweight projection — single query, no nested hydration.
      *
      * @return list<array{id: int, slug: string, title: string, status: string}>
+     *
+     * @throws PhpDbException When a query fails.
      */
     #[Override]
     public function listSummaries(): array
@@ -169,6 +173,8 @@ final class LaminasDbFormLoader implements FormLoaderInterface
 
     /**
      * @return list<FormDefinition>
+     *
+     * @throws PhpDbException When a query fails.
      */
     #[Override]
     public function loadAll(): array
@@ -176,12 +182,18 @@ final class LaminasDbFormLoader implements FormLoaderInterface
         return array_map($this->hydrate(...), $this->fetchAll('SELECT * FROM form ORDER BY title ASC', []));
     }
 
+    /**
+     * @throws PhpDbException When a query fails.
+     */
     #[Override]
     public function loadById(int $formId): ?FormDefinition
     {
         return $this->loadOne('SELECT * FROM form WHERE form_id = ?', [$formId]);
     }
 
+    /**
+     * @throws PhpDbException When a query fails.
+     */
     #[Override]
     public function loadBySlug(string $slug): ?FormDefinition
     {
@@ -205,7 +217,7 @@ final class LaminasDbFormLoader implements FormLoaderInterface
             placeholder: $read->nullableString('placeholder'),
             defaultValue: $read->nullableString('default_value'),
             required: $read->bool('required', default: false),
-            colSpan: max(1, min(4, $read->int('col_span', default: 4))),
+            colSpan: self::colSpan($read->nullableInt('col_span')),
             sort: $read->int('sort'),
             options: self::stringKeys($read->json('options_json')),
             validators: self::validators($read->json('validators_json')),
@@ -290,11 +302,13 @@ final class LaminasDbFormLoader implements FormLoaderInterface
      * @param array<int, mixed> $params
      *
      * @return list<array<array-key, mixed>>
+     *
+     * @throws PhpDbException When the query fails.
      */
     private function fetchAll(string $sql, array $params): array
     {
         $rows = [];
-        foreach ($this->adapter->createStatement($sql)->execute($params) as $row) {
+        foreach ($this->adapter->executeQuery($this->adapter->prepareQuery($sql, $params)) as $row) {
             if (! is_array($row)) {
                 continue;
             }
@@ -312,6 +326,8 @@ final class LaminasDbFormLoader implements FormLoaderInterface
      * @param list<array<array-key, mixed>> $parents
      *
      * @return list<array<array-key, mixed>>
+     *
+     * @throws PhpDbException When a query fails.
      */
     private function fetchChildren(string $table, string $parentColumn, array $parents, string $idColumn): array
     {
@@ -324,7 +340,7 @@ final class LaminasDbFormLoader implements FormLoaderInterface
             return [];
         }
 
-        $placeholders = implode(',', array_fill(0, count($ids), value: '?'));
+        $placeholders = implode(',', array_map(static fn(): string => '?', $ids));
 
         return $this->fetchAll(
             "SELECT * FROM {$table} WHERE {$parentColumn} IN ({$placeholders}) ORDER BY sort ASC, {$idColumn} ASC",
@@ -382,6 +398,8 @@ final class LaminasDbFormLoader implements FormLoaderInterface
 
     /**
      * @param array<array-key, mixed> $formRow
+     *
+     * @throws PhpDbException When a query fails.
      */
     private function hydrate(array $formRow): FormDefinition
     {
@@ -428,6 +446,8 @@ final class LaminasDbFormLoader implements FormLoaderInterface
 
     /**
      * @param array<int, mixed> $params
+     *
+     * @throws PhpDbException When a query fails.
      */
     private function loadOne(string $sql, array $params): ?FormDefinition
     {

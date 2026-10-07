@@ -1,6 +1,6 @@
 # Loading forms
 
-`LaminasDbFormLoader` implements `FormLoaderInterface` (the four methods
+`PhpDbFormLoader` implements `FormLoaderInterface` (the four methods
 below); register another implementation as `FormLoaderInterface::class` to load
 definitions from elsewhere. It hydrates `Contenir\FormBuilder\Definition\FormDefinition`
 aggregates from the forms schema with one query per level (form, sections,
@@ -8,7 +8,7 @@ groups, rows, fields, notifications, webhooks), so the cost does not grow with
 the form's size.
 
 ```php
-$loader = new LaminasDbFormLoader($adapter);
+$loader = new PhpDbFormLoader($adapter);
 
 $loader->loadById(5);        // ?FormDefinition
 $loader->loadBySlug('contact'); // ?FormDefinition

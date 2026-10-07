@@ -17,6 +17,27 @@ composer require contenir/contenir-formbuilder-laminas-mvc:^2.0@RC
 Projects that must stay on PHP 8.1 or 8.2 can keep using `^0.1`, maintained on
 the `0.x` branch.
 
+
+## Database layer: laminas-db to php-db
+
+The loader and the entry repository now use `php-db/phpdb` instead of
+`laminas/laminas-db`, as in the Mezzio adapter:
+
+| 0.x | 2.0 |
+| --- | --- |
+| `Loader\LaminasDbFormLoader` | `Loader\PhpDbFormLoader` |
+| `Repository\LaminasDbEntryRepository` | `Repository\PhpDbEntryRepository` |
+| `Factory\LaminasDb*Factory` | `Factory\PhpDb*Factory` |
+| `db_adapter` default `Laminas\Db\Adapter\Adapter` | `PhpDb\Adapter\AdapterInterface` |
+
+Register a php-db adapter (`php-db/phpdb` 0.6 plus the driver package for your
+database, such as `php-db/phpdb-mysql`) under `PhpDb\Adapter\AdapterInterface`,
+or point `formbuilder.db_adapter` at its service id. The schema and the
+queries are unchanged. `PhpDbEntryRepository` also takes a
+`Psr\Clock\ClockInterface` for the submission time; the factory uses the
+container's clock service when there is one, otherwise the system clock.
+Code that resolves the services by interface needs no change.
+
 ## Final classes and extension points
 
 Every concrete class is now `final`: `Module`, the factories, the controller,
@@ -30,7 +51,7 @@ through interfaces instead:
 | A registrar | extend `StoreSubmissionRegistrar` / `EmailNotificationRegistrar` | implement `SplObserver` and add it to `formbuilder.observers` |
 | A factory | extend it | register your own factory for the service |
 
-`ConfigProvider` aliases the interfaces to the Laminas\Db implementations, and
+`ConfigProvider` aliases the interfaces to the php-db implementations, and
 the submit pipeline asks for the interfaces, so a replacement registered under
 the interface name is picked up everywhere:
 
@@ -59,7 +80,7 @@ final class MyLoaderFactory extends LaminasDbFormLoaderFactory { /* … */ }
 
 // 2.0: register your own factory instead
 return ['service_manager' => ['factories' => [
-    LaminasDbFormLoader::class => MyLoaderFactory::class,
+    PhpDbFormLoader::class => MyLoaderFactory::class,
 ]]];
 ```
 
@@ -72,8 +93,9 @@ public const STATUS_SPAM = 'spam';
 public const string STATUS_SPAM = 'spam';
 ```
 
-A subclass of `LaminasDbEntryRepository` that redeclares a status constant must
-declare it as `string`.
+The status constants are now on `Repository\EntryRepositoryInterface`
+(`EntryRepositoryInterface::STATUS_SPAM`, …); `LaminasDbEntryRepository::STATUS_*`
+no longer exists.
 
 ## Request data
 

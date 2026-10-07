@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace Contenir\FormBuilder\Laminas\Mvc\Tests\Trait;
 
-use Laminas\Db\Adapter\Adapter;
 use PDO;
+use PhpDb\Adapter\Adapter;
+use PhpDb\Adapter\AdapterInterface;
+use PhpDb\Adapter\Driver\Pdo\Statement;
+use PhpDb\Sqlite\AdapterPlatform;
+use PhpDb\Sqlite\Pdo\Connection;
+use PhpDb\Sqlite\Pdo\Driver;
+use PhpDb\Sqlite\Pdo\Feature\SqliteRowCounter;
 
 use function array_fill;
 use function array_filter;
@@ -16,6 +22,7 @@ use function count;
 use function explode;
 use function file_get_contents;
 use function implode;
+use function trim;
 
 /**
  * A fresh in-memory SQLite database with the forms schema for each test.
@@ -23,18 +30,27 @@ use function implode;
  */
 trait SqliteDatabaseTrait
 {
-    private Adapter $adapter;
+    private AdapterInterface $adapter;
+
+    private PDO $pdo;
 
     protected function setUpDatabase(): void
     {
-        $this->adapter = new Adapter(['driver' => 'Pdo_Sqlite', 'dsn' => 'sqlite::memory:']);
-        $pdo           = $this->adapter->getDriver()->getConnection()->getResource();
-        static::assertInstanceOf(PDO::class, $pdo);
+        $this->pdo = new PDO('sqlite::memory:');
+        $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
         $sql = (string) file_get_contents(__DIR__ . '/../install-forms.sqlite.sql');
         foreach (array_filter(array_map(trim(...), explode(';', $sql))) as $statement) {
-            $pdo->exec($statement);
+            $this->pdo->exec($statement);
         }
+
+        $driver = new Driver(
+            connection: new Connection($this->pdo),
+            statementPrototype: new Statement(),
+            features: [new SqliteRowCounter()],
+        );
+
+        $this->adapter = new Adapter($driver, new AdapterPlatform($driver));
     }
 
     /**
@@ -44,9 +60,10 @@ trait SqliteDatabaseTrait
     {
         $names        = implode(', ', array_map(static fn(string $name): string => "`{$name}`", array_keys($columns)));
         $placeholders = implode(', ', array_fill(0, count($columns), value: '?'));
-        $this->adapter->query("INSERT INTO {$table} ({$names}) VALUES ({$placeholders})", array_values($columns));
+        $statement    = $this->pdo->prepare("INSERT INTO {$table} ({$names}) VALUES ({$placeholders})");
+        $statement->execute(array_values($columns));
 
-        return (int) $this->adapter->getDriver()->getLastGeneratedValue();
+        return (int) $this->pdo->lastInsertId();
     }
 
     /**
@@ -54,11 +71,9 @@ trait SqliteDatabaseTrait
      */
     private function rows(string $sql): array
     {
-        $rows = [];
-        foreach ($this->adapter->query($sql, Adapter::QUERY_MODE_EXECUTE) as $row) {
-            $rows[] = (array) $row;
-        }
+        $statement = $this->pdo->query($sql);
 
-        return $rows;
+        /** @var list<array<string, mixed>> */
+        return false === $statement ? [] : $statement->fetchAll(PDO::FETCH_ASSOC);
     }
 }

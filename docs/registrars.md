@@ -6,31 +6,34 @@ Registrars are `SplObserver`s notified by `FormSubmissionService` with the
 ## StoreSubmissionRegistrar
 
 Records every valid and spam submission through
-`LaminasDbEntryRepository::record()` (status `complete` or `spam`), then writes
+`PhpDbEntryRepository::record()` (status `complete` or `spam`), then writes
 `entry_id` and `entry_status` to the registry so later observers and the
 controller see them. It does nothing without a `FormDefinition` that has an id
 and an array of values. A database error is rethrown: the visitor must not be
 told the submission succeeded.
 
-## LaminasDbEntryRepository
+## PhpDbEntryRepository
 
 Implements `EntryRepositoryInterface::record()`, which `StoreSubmissionRegistrar`
 depends on; register another implementation as `EntryRepositoryInterface::class`
-to store entries elsewhere.
+to store entries elsewhere. It writes through the php-db adapter named by
+`formbuilder.db_adapter`, and takes the submission time from the container's
+`Psr\Clock\ClockInterface` service when one is registered, otherwise from the
+system clock.
 
 ```php
 $id = $repository->record(
     formId: 5,
     values: ['name' => 'Ann', 'tags' => ['a', 'b']],
-    status: LaminasDbEntryRepository::STATUS_COMPLETE,
+    status: EntryRepositoryInterface::STATUS_COMPLETE,
     ip: '10.0.0.1',
     userId: null,
     meta: ['user_agent' => '…'],
 );
 ```
 
-Inserts one `form_entry` row (with the current time and `meta_json`, NULL when
-empty) and one `form_entry_value` row per value, in a transaction: scalars go
+Inserts one `form_entry` row (with the clock's current time and `meta_json`,
+NULL when empty) and one `form_entry_value` row per value, in a transaction: scalars go
 to `value_text`, arrays to `value_json`, anything else is stored as NULL. On
 failure the transaction is rolled back and the exception rethrown.
 

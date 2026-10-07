@@ -6,7 +6,7 @@ namespace Contenir\FormBuilder\Laminas\Mvc\Tests\Integration\Loader;
 
 use Contenir\FormBuilder\Definition\FormDefinition;
 use Contenir\FormBuilder\Definition\ValidatorDefinition;
-use Contenir\FormBuilder\Laminas\Mvc\Loader\LaminasDbFormLoader;
+use Contenir\FormBuilder\Laminas\Mvc\Loader\PhpDbFormLoader;
 use Contenir\FormBuilder\Laminas\Mvc\Tests\Trait\SqliteDatabaseTrait;
 use Override;
 use PHPUnit\Framework\Attributes\Group;
@@ -19,11 +19,11 @@ use function random_bytes;
 
 #[Group('integration')]
 #[Group('repository')]
-final class LaminasDbFormLoaderTest extends TestCase
+final class PhpDbFormLoaderTest extends TestCase
 {
     use SqliteDatabaseTrait;
 
-    private LaminasDbFormLoader $loader;
+    private PhpDbFormLoader $loader;
 
     #[Test]
     public function appliesDefaultsForEmptyOptionalColumns(): void
@@ -354,7 +354,7 @@ final class LaminasDbFormLoaderTest extends TestCase
     protected function setUp(): void
     {
         $this->setUpDatabase();
-        $this->loader = new LaminasDbFormLoader($this->adapter);
+        $this->loader = new PhpDbFormLoader($this->adapter);
     }
 
     private function rowForNewForm(): int
