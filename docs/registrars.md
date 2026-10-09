@@ -43,19 +43,19 @@ Status constants: `STATUS_PENDING`, `STATUS_COMPLETE`, `STATUS_SPAM`,
 ## EmailNotificationRegistrar
 
 Sends each enabled `NotificationDefinition` of the form through a
-`Laminas\Mail\Transport\TransportInterface`. Spam is skipped.
+`Contenir\Mail\Transport\TransportInterface` (contenir-mail). Spam is skipped.
 
 - **Merge tags** are expanded in the subject, body and addresses with the shared
   `TokenReplacer`. Line breaks in the expanded subject become spaces.
 - **Recipients:** `toAddress` is split on commas, semicolons and whitespace;
   each part is expanded and kept when it is a valid email address.
-- **From and Reply-To:** expanded; an empty result is skipped, and one Laminas
-  rejects is logged as a notice and skipped.
+- **From and Reply-To:** expanded; an empty result is skipped, and one
+  contenir-mail rejects as an address is logged as a notice and skipped.
 - **Body:** the *template* decides the format. A template containing HTML
   tags or `{entry:fields}` is an HTML body: every merge-tag value is
   HTML-escaped (`TokenReplacer::replaceForHtml()`) and the message is sent as
   `multipart/alternative` with a generated plain-text part. Any other template
-  is sent as plain text, even if a submitted value contains markup.
+  is sent as UTF-8 plain text, even if a submitted value contains markup.
 - **Failures** are logged as warnings and never thrown, and do not stop the
   other notifications.
 

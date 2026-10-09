@@ -7,14 +7,14 @@ namespace Contenir\FormBuilder\Laminas\Mvc\Factory;
 use Contenir\FormBuilder\Laminas\Mvc\Container\Services;
 use Contenir\FormBuilder\Laminas\Mvc\Registrar\EmailNotificationRegistrar;
 use Contenir\FormBuilder\Service\TokenReplacer;
-use Laminas\Mail\Transport\TransportInterface;
+use Contenir\Mail\Transport\TransportInterface;
 use Psr\Container\ContainerExceptionInterface;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use UnexpectedValueException;
 
 /**
- * Needs a `Laminas\Mail\Transport\TransportInterface` service; the PSR-3
+ * Needs a `Contenir\Mail\Transport\TransportInterface` service; the PSR-3
  * logger is used when one is registered.
  *
  * @api

@@ -24,7 +24,7 @@ It wires the framework-agnostic form-builder engine into a laminas-mvc site:
 
 - PHP 8.3, 8.4 or 8.5
 - `contenir/contenir-formbuilder` 2.0 (use 0.1.6 of this package for `contenir/formbuilder` 0.1)
-- laminas-mvc 3.8+, php-db/phpdb 0.6 (with the driver package for your database), laminas-form, laminas-view, laminas-session, laminas-mail
+- laminas-mvc 3.8+, php-db/phpdb 0.6 (with the driver package for your database), laminas-form, laminas-view, laminas-session, contenir/contenir-mail 0.2
 - A database with the forms schema (`tests/install-forms.sqlite.sql` is the SQLite version)
 - Optional: `contenir/contenir-storage` 2.2+, registered as `Contenir\Storage\StorageManager`, for file uploads
 

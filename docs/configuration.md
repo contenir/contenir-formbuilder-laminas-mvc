@@ -37,7 +37,7 @@ configured. Without a request host (CLI) the tag is left as is.
 
 | Service | Effect |
 | --- | --- |
-| `Laminas\Mail\Transport\TransportInterface` | Enables `EmailNotificationRegistrar` in the submit pipeline |
+| `Contenir\Mail\Transport\TransportInterface` | Enables `EmailNotificationRegistrar` in the submit pipeline |
 | `Psr\Log\LoggerInterface` | Email and webhook failures are logged |
 | `Contenir\Storage\StorageManager` | Enables `file` field uploads |
 

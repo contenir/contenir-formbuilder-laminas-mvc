@@ -17,6 +17,34 @@ composer require contenir/contenir-formbuilder-laminas-mvc:^2.0@RC
 Projects that must stay on PHP 8.1 or 8.2 can keep using `^0.1`, maintained on
 the `0.x` branch.
 
+## Mail transport
+
+From 2.0.0-RC2 notifications are sent with `contenir/contenir-mail` rather than
+`laminas/laminas-mail`. Register a `Contenir\Mail\Transport\TransportInterface`
+service where you registered `Laminas\Mail\Transport\TransportInterface`;
+without one, notifications are not sent, as before. contenir-mail's own module
+or `ConfigProvider` builds one from `mail.transport` config, or build a
+`Contenir\Mail\Transport\Smtp` from an `SmtpConfig` in your own factory:
+
+```php
+use Contenir\Mail\Protocol\Security;
+use Contenir\Mail\Protocol\Smtp\Auth\Plain;
+use Contenir\Mail\Transport\Smtp;
+use Contenir\Mail\Transport\SmtpConfig;
+use Contenir\Mail\Transport\TransportInterface;
+
+'factories' => [
+    TransportInterface::class => static fn(): TransportInterface => new Smtp(new SmtpConfig(
+        host: 'smtp.example.com',
+        port: 587,
+        security: Security::StartTls,
+        auth: new Plain('user', 'secret'),
+    )),
+],
+```
+
+A transport of your own implements `send(Contenir\Mail\Message $message): void`.
+
 
 ## Database layer: laminas-db to php-db
 

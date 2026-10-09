@@ -6,10 +6,9 @@
     "require": {
         "php": "~8.3.0 || ~8.4.0 || ~8.5.0",
         "contenir/contenir-formbuilder": "^2.0",
+        "contenir/contenir-mail": "^0.2",
         "laminas/laminas-form": "^3.20",
         "laminas/laminas-http": "^2.19",
-        "laminas/laminas-mail": "^2.22",
-        "laminas/laminas-mime": "^2.12",
         "laminas/laminas-mvc": "^3.8",
         "laminas/laminas-servicemanager": "^3.0",
         "laminas/laminas-session": "^2.16",
@@ -25,7 +24,7 @@
         "contenir/contenir-storage": "^2.2",
         "infection/infection": "^0.34.1",
         "laminas/laminas-i18n": "^2.32",
-        "php-db/phpdb-sqlite": "0.3.x-dev",
+        "php-db/phpdb-sqlite": "^0.2",
         "phpunit/phpunit": "^11.5.42"
     },
     "replace": {
