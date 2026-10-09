@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.0-RC2] - Unreleased
+
+### Changed
+
+- **Breaking:** notification emails are sent with `contenir/contenir-mail`
+  instead of the abandoned `laminas/laminas-mail` and `laminas/laminas-mime`,
+  which are no longer required. `EmailNotificationRegistrar` and the submit
+  pipeline now take a `Contenir\Mail\Transport\TransportInterface` service.
+  The messages are unchanged: an HTML template is sent as
+  `multipart/alternative` with a plain-text part, any other as UTF-8 plain
+  text. See "Mail transport" in [UPGRADE-2.0.md](UPGRADE-2.0.md).
+- The tests use `php-db/phpdb-sqlite` ^0.2 again, now that laminas-mail no
+  longer holds `webmozart/assert` at 1.x.
+
 ## [2.0.0-RC1] - 2026-10-07
 
 The first 2.0 pre-release. The public API keeps its shape. The major version

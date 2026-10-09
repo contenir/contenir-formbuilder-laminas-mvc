@@ -8,12 +8,8 @@ use Contenir\FormBuilder\Definition\FormDefinition;
 use Contenir\FormBuilder\Definition\NotificationDefinition;
 use Contenir\FormBuilder\Service\BuilderForm;
 use Contenir\FormBuilder\Service\TokenReplacer;
-use Laminas\Mail\Header\ContentType;
-use Laminas\Mail\Message;
-use Laminas\Mail\Transport\TransportInterface;
-use Laminas\Mime\Message as MimeMessage;
-use Laminas\Mime\Mime;
-use Laminas\Mime\Part as MimePart;
+use Contenir\Mail\Message;
+use Contenir\Mail\Transport\TransportInterface;
 use Override;
 use Psr\Log\LoggerInterface;
 use SplObserver;
@@ -40,7 +36,7 @@ use const FILTER_VALIDATE_EMAIL;
 
 /**
  * Sends each enabled notification defined for the form after submission,
- * via Laminas\Mail.
+ * via contenir-mail.
  *
  * Skips when the entry was flagged as spam, when no notifications are
  * configured, or when the per-notification trigger does not match.
@@ -124,8 +120,8 @@ final class EmailNotificationRegistrar implements SplObserver
 
     /**
      * Expand the body template and apply it: HTML templates get escaped
-     * values and a multipart/alternative body, plain-text templates are set
-     * verbatim.
+     * values and a multipart/alternative body, plain-text templates a UTF-8
+     * text/plain body, verbatim.
      *
      * @param array<string, mixed> $values
      * @param array<string, mixed> $entry
@@ -138,40 +134,14 @@ final class EmailNotificationRegistrar implements SplObserver
         array $entry,
     ): void {
         if (! $this->isHtmlTemplate($template)) {
-            $message->setBody($this->tokens->replace($template, $form, $values, $entry));
+            $message->setText($this->tokens->replace($template, $form, $values, $entry));
 
             return;
         }
 
-        $this->applyHtmlBody($message, $this->tokens->replaceForHtml($template, $form, $values, $entry));
-    }
-
-    /**
-     * Apply a resolved HTML notification body as a multipart/alternative
-     * MIME message: the HTML part plus a stripped-tag plain-text fallback,
-     * so non-HTML clients (and spam scanners) get a readable version.
-     */
-    private function applyHtmlBody(Message $message, string $body): void
-    {
-        $textPart           = new MimePart($this->htmlToText($body));
-        $textPart->type     = Mime::TYPE_TEXT;
-        $textPart->charset  = 'utf-8';
-        $textPart->encoding = Mime::ENCODING_QUOTEDPRINTABLE;
-
-        $htmlPart           = new MimePart($body);
-        $htmlPart->type     = Mime::TYPE_HTML;
-        $htmlPart->charset  = 'utf-8';
-        $htmlPart->encoding = Mime::ENCODING_QUOTEDPRINTABLE;
-
-        $mime = new MimeMessage();
-        $mime->setParts([$textPart, $htmlPart]);
-
-        $message->setBody($mime);
-
-        $contentType = $message->getHeaders()->get('Content-Type');
-        if ($contentType instanceof ContentType) {
-            $contentType->setType('multipart/alternative');
-        }
+        $body = $this->tokens->replaceForHtml($template, $form, $values, $entry);
+        $message->setText($this->htmlToText($body));
+        $message->setHtml($body);
     }
 
     /**
@@ -186,7 +156,6 @@ final class EmailNotificationRegistrar implements SplObserver
     ): void {
         try {
             $message = new Message();
-            $message->setEncoding('UTF-8');
             $message->setSubject((string) preg_replace(
                 '/[\r\n]+/',
                 replacement: ' ',

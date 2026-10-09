@@ -10,10 +10,14 @@ use Contenir\FormBuilder\Definition\NotificationDefinition;
 use Contenir\FormBuilder\Laminas\Mvc\Registrar\EmailNotificationRegistrar;
 use Contenir\FormBuilder\Service\BuilderForm;
 use Contenir\FormBuilder\Service\TokenReplacer;
-use Laminas\Mail\Message;
-use Laminas\Mail\Transport\InMemory;
-use Laminas\Mail\Transport\TransportInterface;
-use Laminas\Mime\Message as MimeMessage;
+use Contenir\Mail\Address;
+use Contenir\Mail\AddressList;
+use Contenir\Mail\Message;
+use Contenir\Mail\Mime\MultipartType;
+use Contenir\Mail\Mime\Part;
+use Contenir\Mail\Mime\PartInterface;
+use Contenir\Mail\Transport\InMemory;
+use Contenir\Mail\Transport\TransportInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\Test;
@@ -23,9 +27,7 @@ use RuntimeException;
 use SplObserver;
 use SplSubject;
 
-use function array_keys;
 use function array_map;
-use function iterator_to_array;
 use function str_repeat;
 
 #[Group('unit')]
@@ -66,6 +68,14 @@ final class EmailNotificationRegistrarTest extends TestCase
     }
 
     /**
+     * @return list<string>
+     */
+    private static function emails(AddressList $addresses): array
+    {
+        return array_map(static fn(Address $address): string => $address->getEmail(), $addresses->toArray());
+    }
+
+    /**
      * @param list<NotificationDefinition> $notifications
      */
     private static function form(array $notifications): FormDefinition
@@ -76,6 +86,25 @@ final class EmailNotificationRegistrarTest extends TestCase
             title: 'Contact',
             notifications: $notifications,
         );
+    }
+
+    /**
+     * The body as one part, or the parts of a multipart body.
+     *
+     * @return list<Part>
+     */
+    private static function parts(Message $message): array
+    {
+        $body = $message->getBody();
+        static::assertInstanceOf(PartInterface::class, $body);
+
+        $parts = [];
+        foreach ($body->isMultipart() ? $body->getParts() : [$body] as $part) {
+            static::assertInstanceOf(Part::class, $part);
+            $parts[] = $part;
+        }
+
+        return $parts;
     }
 
     /**
@@ -113,16 +142,17 @@ final class EmailNotificationRegistrarTest extends TestCase
 
         static::assertSame(
             ['b@example.com'],
-            array_keys(iterator_to_array(
-                $transport->getLastMessage()?->getTo() ?? [],
-            )),
+            self::emails($transport->getLastMessage()?->getTo() ?? new AddressList()),
         );
     }
 
     #[Test]
     public function encodesMessagesAsUtf8(): void
     {
-        static::assertSame('UTF-8', $this->send('Hi', [])->getEncoding());
+        static::assertSame(['UTF-8'], array_map(
+            static fn(Part $part): ?string => $part->getCharset(),
+            self::parts($this->send('Hi é', [])),
+        ));
     }
 
     #[Test]
@@ -147,7 +177,7 @@ final class EmailNotificationRegistrarTest extends TestCase
     {
         $message = $this->send('Entry: {ENTRY:fields}', []);
 
-        static::assertInstanceOf(MimeMessage::class, $message->getBody());
+        static::assertSame(MultipartType::Alternative, $message->getBody()?->getType());
     }
 
     #[Test]
@@ -169,17 +199,21 @@ final class EmailNotificationRegistrarTest extends TestCase
 
         $message = $transport->getLastMessage();
         static::assertInstanceOf(Message::class, $message);
-        $mime = $message->getBody();
-        static::assertInstanceOf(MimeMessage::class, $mime);
         static::assertSame(
-            ['text/plain', 'text/html'],
-            array_map(static fn($part): string => $part->type, $mime->getParts()),
-        );
-        static::assertSame("Hi & welcome\nLine one\nLine two\nA lot", $mime->getParts()[0]->getRawContent());
-        static::assertSame($body, $mime->getParts()[1]->getRawContent());
-        static::assertStringContainsString(
-            'multipart/alternative',
-            $message->getHeaders()->get('Content-Type')->getFieldValue(),
+            [
+                MultipartType::Alternative,
+                [
+                    ['text/plain', "Hi & welcome\nLine one\nLine two\nA lot"],
+                    ['text/html',  $body],
+                ],
+            ],
+            [
+                $message->getBody()?->getType(),
+                array_map(
+                    static fn(Part $part): array => [$part->getType(), $part->getContent()],
+                    self::parts($message),
+                ),
+            ],
         );
     }
 
@@ -191,11 +225,9 @@ final class EmailNotificationRegistrarTest extends TestCase
             [],
         );
 
-        $mime = $message->getBody();
-        static::assertInstanceOf(MimeMessage::class, $mime);
         static::assertSame(
             str_repeat('a', times: 76) . " b\n" . str_repeat('c', times: 77) . "\nd",
-            $mime->getParts()[0]->getRawContent(),
+            self::parts($message)[0]->getContent(),
         );
     }
 
@@ -204,9 +236,10 @@ final class EmailNotificationRegistrarTest extends TestCase
     {
         $message = $this->send('<p>From {field:name}</p>', ['name' => '<img src=x onerror=alert(1)>']);
 
-        $mime = $message->getBody();
-        static::assertInstanceOf(MimeMessage::class, $mime);
-        static::assertSame('<p>From &lt;img src=x onerror=alert(1)&gt;</p>', $mime->getParts()[1]->getRawContent());
+        static::assertSame(
+            '<p>From &lt;img src=x onerror=alert(1)&gt;</p>',
+            self::parts($message)[1]->getContent(),
+        );
     }
 
     #[Test]
@@ -240,7 +273,10 @@ final class EmailNotificationRegistrarTest extends TestCase
     {
         $message = $this->send('From {field:name}', ['name' => '<a href="https://evil.example">Click</a>']);
 
-        static::assertSame('From <a href="https://evil.example">Click</a>', $message->getBody());
+        static::assertSame(
+            [['text/plain', 'From <a href="https://evil.example">Click</a>']],
+            array_map(static fn(Part $part): array => [$part->getType(), $part->getContent()], self::parts($message)),
+        );
     }
 
     #[Test]
@@ -266,11 +302,11 @@ final class EmailNotificationRegistrarTest extends TestCase
         $message = $transport->getLastMessage();
         static::assertInstanceOf(Message::class, $message);
         static::assertSame('New entry from Ann Bcc: evil@example.com', $message->getSubject());
-        static::assertSame("Entry 42 from Ann\r\nBcc: evil@example.com", $message->getBody());
-        static::assertSame(['admin@example.com', 'ann@example.com'], array_keys(iterator_to_array($message->getTo())));
-        static::assertSame(['noreply@example.com'], array_keys(iterator_to_array($message->getFrom())));
-        static::assertSame(['ann@example.com'], array_keys(iterator_to_array($message->getReplyTo())));
-        static::assertSame([], array_keys(iterator_to_array($message->getBcc())));
+        static::assertSame("Entry 42 from Ann\r\nBcc: evil@example.com", self::parts($message)[0]->getContent());
+        static::assertSame(['admin@example.com', 'ann@example.com'], self::emails($message->getTo()));
+        static::assertSame(['noreply@example.com'], self::emails($message->getFrom()));
+        static::assertSame(['ann@example.com'], self::emails($message->getReplyTo()));
+        static::assertSame([], self::emails($message->getBcc()));
     }
 
     #[Test]
@@ -318,7 +354,7 @@ final class EmailNotificationRegistrarTest extends TestCase
     #[Test]
     public function upperCaseMarkupMakesATemplateHtml(): void
     {
-        static::assertInstanceOf(MimeMessage::class, $this->send('Hi<BR>there', [])->getBody());
+        static::assertSame(MultipartType::Alternative, $this->send('Hi<BR>there', [])->getBody()?->getType());
     }
 
     /**
