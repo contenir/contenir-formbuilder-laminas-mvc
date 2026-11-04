@@ -2455,12 +2455,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/contenir/contenir-qa-tools.git",
-                "reference": "9127564a0cfc1bad85faaa6018a04282030e75c1"
+                "reference": "24625ab4c8d781568383c1b7b697e9df6096e914"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/contenir/contenir-qa-tools/zipball/9127564a0cfc1bad85faaa6018a04282030e75c1",
-                "reference": "9127564a0cfc1bad85faaa6018a04282030e75c1",
+                "url": "https://api.github.com/repos/contenir/contenir-qa-tools/zipball/24625ab4c8d781568383c1b7b697e9df6096e914",
+                "reference": "24625ab4c8d781568383c1b7b697e9df6096e914",
                 "shasum": ""
             },
             "require": {
@@ -2489,7 +2489,7 @@
             "support": {
                 "source": "https://github.com/contenir/contenir-qa-tools"
             },
-            "time": "2026-10-07T04:57:05+00:00"
+            "time": "2026-11-04T00:20:47+00:00"
         },
         {
             "name": "contenir/contenir-storage",
