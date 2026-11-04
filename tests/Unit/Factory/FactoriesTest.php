@@ -121,7 +121,7 @@ final class FactoriesTest extends TestCase
             [null, null],
             [
                 $this->property((new EmailNotificationRegistrarFactory())($container), 'log'),
-                $this->property((new WebhookRegistrarFactory())(new InMemoryContainer()), 'log'),
+                $this->webhookLogger((new WebhookRegistrarFactory())(new InMemoryContainer())),
             ],
         );
     }
@@ -150,7 +150,7 @@ final class FactoriesTest extends TestCase
             $this->property($email, 'log'),
         ]);
         static::assertSame($repository, $this->property($store, 'repository'));
-        static::assertSame($logger, $this->property($webhook, 'log'));
+        static::assertSame($logger, $this->webhookLogger($webhook));
     }
 
     #[Test]
@@ -255,5 +255,14 @@ final class FactoriesTest extends TestCase
     private function property(object $object, string $name): mixed
     {
         return (new ReflectionProperty($object, $name))->getValue($object);
+    }
+
+    /**
+     * The logger a webhook registrar's delivery reports failed calls to: the registrar hands it
+     * to the delivery it builds, and keeps none of its own.
+     */
+    private function webhookLogger(WebhookRegistrar $registrar): mixed
+    {
+        return $this->property($this->property($registrar, 'delivery'), 'log');
     }
 }
