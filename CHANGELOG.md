@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.0-RC3] - 2026-11-11
+
+### Changed
+
+- `contenir/contenir-mail` may be 0.2, 0.3 or 0.4, so a site can take its latest release.
+
 ## [2.0.0-RC2] - Unreleased
 
 ### Changed

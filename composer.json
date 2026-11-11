@@ -6,7 +6,7 @@
     "require": {
         "php": "~8.3.0 || ~8.4.0 || ~8.5.0",
         "contenir/contenir-formbuilder": "^2.0",
-        "contenir/contenir-mail": "^0.2",
+        "contenir/contenir-mail": "^0.2 || ^0.3 || ^0.4",
         "laminas/laminas-form": "^3.20",
         "laminas/laminas-http": "^2.19",
         "laminas/laminas-mvc": "^3.8",
